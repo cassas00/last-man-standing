@@ -20,10 +20,6 @@ const teamsInRound = getTeamsPlayingInRound(
 );
 const alive = getAlivePlayers(resolved);
 
-function getUsedTeams(playerId: string): string[] {
-  const player = resolved.players.find((p) => p.id === playerId);
-  return player?.picks.map((p) => p.teamId) ?? [];
-}
 ---
 
 <Layout title="Picks" description="Every fighter's team picks across all rounds.">
@@ -117,8 +113,8 @@ function getUsedTeams(playerId: string): string[] {
         <div class="teams-grid">
           {teamsInRound.map((team) => {
             const pickedBy = alive.filter((p) => {
-              const used = getUsedTeams(p.id);
-              return used.includes(team.id);
+              const pick = p.picks.find((pk) => pk.round === resolved.currentRound);
+              return pick?.teamId === team.id;
             });
             return (
               <div class="team-card mk-panel" style={`--team-color: ${team.color}`}>
@@ -126,9 +122,9 @@ function getUsedTeams(playerId: string): string[] {
                 <span class="team-card__name">{team.name}</span>
                 <span class="team-card__picked">
                   {pickedBy.length > 0
-                    ? `Used by: ${pickedBy.map((p) => p.name).join(', ')}`
+                    ? `Picked by: ${pickedBy.map((p) => p.name).join(', ')}`
                     : resolved.picksOpen
-                      ? 'Available to pick'
+                      ? 'No picks yet'
                       : 'Picks closed'}
                 </span>
               </div>

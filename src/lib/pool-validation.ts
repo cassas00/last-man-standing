@@ -59,11 +59,11 @@ export function getAvailableTeamsForPlayer(
   allTeams: Team[] = teams,
 ): Team[] {
   const playing = getTeamsPlayingInRound(round, allMatches, allTeams);
-  const takenThisRound = getTeamsTakenInRound(state, round, playerId);
   const usedByPlayer = getTeamsUsedByPlayer(state, playerId);
+  const currentRoundPick = state.entries[playerId]?.picks.find((p) => p.round === round);
 
   return playing.filter(
-    (team) => !takenThisRound.has(team.id) && !usedByPlayer.has(team.id),
+    (team) => !usedByPlayer.has(team.id) || currentRoundPick?.teamId === team.id,
   );
 }
 
@@ -97,10 +97,6 @@ export function validatePick(
 
   const usedByPlayer = getTeamsUsedByPlayer(state, body.playerId);
   const currentRoundPick = state.entries[body.playerId]?.picks.find((p) => p.round === round);
-
-  if (getTeamsTakenInRound(state, round, body.playerId).has(body.teamId)) {
-    return "That team has already been picked this round.";
-  }
 
   if (usedByPlayer.has(body.teamId) && currentRoundPick?.teamId !== body.teamId) {
     return "You cannot pick the same team twice.";

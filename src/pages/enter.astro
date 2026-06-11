@@ -49,7 +49,7 @@ import { gameConfig } from '../lib/game-config';
               <select name="teamId" id="player-team" class="field__input" required>
                 <option value="">Pick a team…</option>
               </select>
-              <p class="field__hint" id="team-hint">Teams already picked this round or used before are hidden.</p>
+              <p class="field__hint" id="team-hint">Teams you've used in a previous round are hidden.</p>
             </label>
 
             <button type="submit" class="enter-submit" id="enter-submit">Lock In Pick</button>
@@ -184,7 +184,7 @@ import { gameConfig } from '../lib/game-config';
     const takenCount = takenThisRound.size;
     teamLabel.textContent = `Round ${currentRound} team`;
     document.getElementById('team-hint')!.textContent =
-      `${takenCount} team${takenCount !== 1 ? 's' : ''} taken this round. No duplicates allowed.`;
+      `${takenCount} pick${takenCount !== 1 ? 's' : ''} submitted this round.`;
   }
 
   async function refresh(savedState?: import('../types/pool').PoolState) {
@@ -206,7 +206,7 @@ import { gameConfig } from '../lib/game-config';
 
     if (currentRound === 1) {
       pageSub.textContent =
-        'Enter your name and lock in your Round 1 team. No two players can pick the same team.';
+        'Enter your name and lock in your Round 1 team.';
       fieldName.hidden = false;
       fieldPlayer.hidden = true;
       nameInput.required = true;
@@ -214,7 +214,7 @@ import { gameConfig } from '../lib/game-config';
       formTitle.textContent = 'Register';
     } else {
       pageSub.textContent =
-        `Submit your Round ${currentRound} pick. Select a player and a team — no duplicates this round, and no team you've used before.`;
+        `Submit your Round ${currentRound} pick. Select a player and a team — you can't reuse a team from an earlier round.`;
       fieldName.hidden = true;
       fieldPlayer.hidden = false;
       nameInput.required = false;
@@ -232,7 +232,7 @@ import { gameConfig } from '../lib/game-config';
     noteEl.textContent =
       source === 'local'
         ? 'Dev mode: saved to this browser only. Use pnpm dev:netlify for shared storage.'
-        : 'Picks are saved for everyone. Each team can only be picked once per round.';
+        : 'Picks are saved for everyone. Multiple players can pick the same team.';
 
     const mySlot = getMySlotId();
     const activePlayerId =

@@ -152,6 +152,17 @@ export function isPastCutoff(cutoffAt: string, now = Date.now()): boolean {
   return now >= new Date(cutoffAt).getTime();
 }
 
+/** Picks for a round are secret until the pick deadline passes. */
+export function areRoundPicksRevealed(
+  round: number,
+  matches: RoundMatch[],
+  now = Date.now(),
+): boolean {
+  const schedule = getRoundSchedule(round, matches);
+  if (!schedule) return false;
+  return isPastCutoff(schedule.cutoffAt, now);
+}
+
 export function getAllRoundSchedules(matches: RoundMatch[]): RoundSchedule[] {
   const roundNumbers = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
   return roundNumbers

@@ -6,13 +6,15 @@ interface Props {
   player: ResolvedPlayer;
   showPick?: boolean;
   currentRound?: number;
+  revealPicks?: boolean;
 }
 
-const { player, showPick = false, currentRound } = Astro.props;
+const { player, showPick = false, currentRound, revealPicks = false } = Astro.props;
 const currentPick = currentRound
   ? player.picks.find((p) => p.round === currentRound)
   : player.picks[player.picks.length - 1];
-const pickTeam = currentPick ? getTeam(currentPick.teamId) : undefined;
+const pickTeam = currentPick && revealPicks ? getTeam(currentPick.teamId) : undefined;
+const pickHidden = !!(currentPick && !revealPicks);
 const registered = player.name !== '—';
 ---
 
@@ -24,6 +26,9 @@ const registered = player.name !== '—';
       {player.eliminated ? 'ELIMINATED' : registered ? 'ALIVE' : 'OPEN'}
     </span>
   </div>
+  {showPick && pickHidden && (
+    <p class="fighter-card__pick-hidden">Pick hidden until deadline</p>
+  )}
   {showPick && pickTeam && (
     <div class="fighter-card__pick">
       <span class="fighter-card__pick-label">Pick</span>
@@ -144,10 +149,12 @@ const registered = player.name !== '—';
     letter-spacing: 0.1em;
   }
 
-  .fighter-card__round-dead {
+  .fighter-card__round-dead,
+  .fighter-card__pick-hidden {
     font-size: 0.8rem;
     color: var(--text-muted);
     margin-bottom: 0.5rem;
+    font-style: italic;
   }
 
   .fighter-card__health {

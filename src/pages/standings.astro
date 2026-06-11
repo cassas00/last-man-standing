@@ -11,8 +11,10 @@ import {
   getAlivePlayers,
   getEliminatedPlayers,
 } from '../data/game';
+import { areRoundPicksRevealed } from '../utils/schedule';
 
 const resolved = getResolvedGame();
+const picksRevealed = areRoundPicksRevealed(resolved.currentRound, game.matches);
 const alive = getAlivePlayers(resolved);
 const eliminated = getEliminatedPlayers(resolved).sort(
   (a, b) => (b.eliminatedRound ?? 0) - (a.eliminatedRound ?? 0)
@@ -54,7 +56,12 @@ const eliminated = getEliminatedPlayers(resolved).sort(
           <h2 class="section-title status-alive">⚔ Survivors</h2>
           <div class="fighter-grid" id="lms-survivors">
             {alive.map((player) => (
-              <FighterCard player={player} showPick currentRound={resolved.currentRound} />
+              <FighterCard
+                player={player}
+                showPick
+                currentRound={resolved.currentRound}
+                revealPicks={picksRevealed}
+              />
             ))}
           </div>
         </section>

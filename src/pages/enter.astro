@@ -77,7 +77,7 @@ import { gameConfig } from '../lib/game-config';
     getTeamsTakenInRound,
   } from '../lib/pool-validation';
   import { resolveGameState } from '../utils/engine';
-  import { formatScheduleTime, getRoundSchedule } from '../utils/schedule';
+  import { areRoundPicksRevealed, formatScheduleTime, getRoundSchedule } from '../utils/schedule';
   import { getTeam } from '../data/game';
 
   const configEl = document.getElementById('lms-config');
@@ -156,7 +156,9 @@ import { gameConfig } from '../lib/game-config';
   function renderRoster(
     state: import('../types/pool').PoolState,
     aliveIds: Set<string>,
+    liveMatches: typeof matches,
   ) {
+    const picksRevealed = areRoundPicksRevealed(currentRound, liveMatches);
     const takenThisRound = getTeamsTakenInRound(state, currentRound);
 
     const entries = Object.values(state.entries);
@@ -167,24 +169,30 @@ import { gameConfig } from '../lib/game-config';
     rosterEl.innerHTML = rosterEntries
       .map((entry) => {
         const pick = entry.picks.find((p) => p.round === currentRound);
-        const team = pick ? getTeam(pick.teamId) : null;
         const isMine = getMySlotId() === entry.playerId;
 
+        if (!picksRevealed) {
+          return `<div class="roster-card mk-panel ${isMine ? 'roster-card--mine' : ''}">
+            <span class="roster-card__name">${entry.name}</span>
+          </div>`;
+        }
+
+        const team = pick ? getTeam(pick.teamId) : null;
         return `<div class="roster-card mk-panel ${pick ? 'roster-card--taken' : ''} ${isMine ? 'roster-card--mine' : ''}">
           <span class="roster-card__name">${entry.name}</span>
           ${
             team
               ? `<span class="roster-card__team" style="--team-color: ${team.color}">${team.short}</span>`
-              : `<span class="roster-card__pending">${picksOpen ? 'No pick yet' : '—'}</span>`
+              : `<span class="roster-card__pending">—</span>`
           }
         </div>`;
       })
       .join('');
 
-    const takenCount = takenThisRound.size;
     teamLabel.textContent = `Round ${currentRound} team`;
-    document.getElementById('team-hint')!.textContent =
-      `${takenCount} pick${takenCount !== 1 ? 's' : ''} submitted this round.`;
+    document.getElementById('team-hint')!.textContent = picksRevealed
+      ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted this round.`
+      : 'All picks stay hidden until the deadline. You can still update yours below.';
   }
 
   async function refresh(savedState?: import('../types/pool').PoolState) {
@@ -232,7 +240,7 @@ import { gameConfig } from '../lib/game-config';
     noteEl.textContent =
       source === 'local'
         ? 'Dev mode: saved to this browser only. Use pnpm dev:netlify for shared storage.'
-        : 'Picks are saved for everyone. Multiple players can pick the same team.';
+        : 'Picks are saved for everyone and stay hidden until the deadline. Use the same device to update yours.';
 
     const mySlot = getMySlotId();
     const activePlayerId =
@@ -252,7 +260,7 @@ import { gameConfig } from '../lib/game-config';
 
     populateTeamOptions(state, activePlayerId, liveMatches);
 
-    renderRoster(state, new Set(survivors.map((p) => p.id)));
+    renderRoster(state, new Set(survivors.map((p) => p.id)), liveMatches);
 
     const formDisabled = !picksOpen;
     form.querySelectorAll('input, select, button').forEach((el) => {

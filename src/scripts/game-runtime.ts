@@ -5,7 +5,7 @@ import { applyPrizeToDom, loadPoolSettings } from "../lib/pool-settings-store";
 import { loadResults } from "../lib/results-store";
 import type { ResolvedPlayer, ResolvedGame } from "../utils/engine";
 import { resolveGameState } from "../utils/engine";
-import { formatScheduleTime } from "../utils/schedule";
+import { areRoundPicksRevealed, formatScheduleTime } from "../utils/schedule";
 import type { RoundMatch, Team } from "../data/game";
 import { getTeam } from "../data/game";
 
@@ -19,13 +19,22 @@ function teamById(teams: Team[], id: string): Team | undefined {
   return teams.find((t) => t.id === id);
 }
 
-function renderFighterCard(player: ResolvedPlayer, teams: Team[], currentRound: number, showPick: boolean): string {
+function renderFighterCard(
+  player: ResolvedPlayer,
+  teams: Team[],
+  currentRound: number,
+  showPick: boolean,
+  revealPicks: boolean,
+): string {
   const pick = player.picks.find((p) => p.round === currentRound);
-  const pickTeam = pick ? teamById(teams, pick.teamId) : undefined;
+  const pickTeam = pick && revealPicks ? teamById(teams, pick.teamId) : undefined;
+  const pickHidden = !!(pick && !revealPicks);
   const hasName = player.name !== "—";
 
   const pickHtml =
-    showPick && pickTeam
+    showPick && pickHidden
+      ? `<p class="fighter-card__pick-hidden">Pick hidden until deadline</p>`
+      : showPick && pickTeam
       ? `<div class="fighter-card__pick">
           <span class="fighter-card__pick-label">Pick</span>
           <span class="fighter-card__team" style="--team-color: ${pickTeam.color}">${pickTeam.short}</span>
@@ -159,11 +168,14 @@ function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches:
     }
   }
 
+  const picksRevealed = areRoundPicksRevealed(resolved.currentRound, matches);
+
   const survivors = document.getElementById("lms-survivors");
   if (survivors) {
     survivors.innerHTML = alive
-      .map((player, i) =>
-        `<div class="animate-slide-up" style="animation-delay: ${i * 0.1}s">${renderFighterCard(player, config.teams, resolved.currentRound, true)}</div>`,
+      .map(
+        (player, i) =>
+          `<div class="animate-slide-up" style="animation-delay: ${i * 0.1}s">${renderFighterCard(player, config.teams, resolved.currentRound, true, picksRevealed)}</div>`,
       )
       .join("");
   }
@@ -172,7 +184,7 @@ function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches:
   if (fallen) {
     fallen.innerHTML = eliminated
       .sort((a, b) => (b.eliminatedRound ?? 0) - (a.eliminatedRound ?? 0))
-      .map((player) => renderFighterCard(player, config.teams, resolved.currentRound, false))
+      .map((player) => renderFighterCard(player, config.teams, resolved.currentRound, false, false))
       .join("");
   }
 

@@ -11,8 +11,10 @@ import {
   getAlivePlayers,
   getTeamsPlayingInRound,
 } from '../data/game';
+import { areRoundPicksRevealed } from '../utils/schedule';
 
 const resolved = getResolvedGame();
+const currentRoundPicksRevealed = areRoundPicksRevealed(resolved.currentRound, game.matches);
 const teamsInRound = getTeamsPlayingInRound(
   resolved.currentRound,
   game.matches,
@@ -30,8 +32,8 @@ const alive = getAlivePlayers(resolved);
       <header class="page-header">
         <h1 class="page-title mk-glow-text">Team Picks</h1>
         <p class="page-sub">
-          Choose your warrior. No team twice.
-          {resolved.picksOpen ? ' Picks are open now.' : ` ${resolved.phaseLabel}.`}
+          Picks stay hidden until the deadline, then everyone's choices are revealed.
+          {resolved.picksOpen ? ' Submit yours before picks lock.' : ` ${resolved.phaseLabel}.`}
         </p>
         {resolved.schedule && (
           <div class="page-cutoff">
@@ -66,11 +68,14 @@ const alive = getAlivePlayers(resolved);
                 {Array.from({ length: resolved.totalRounds }, (_, i) => {
                   const round = i + 1;
                   const pick = player.picks.find((p) => p.round === round);
-                  const team = pick ? getTeam(pick.teamId) : undefined;
+                  const revealed = areRoundPicksRevealed(round, game.matches);
+                  const team = pick && revealed ? getTeam(pick.teamId) : undefined;
                   const evaluated = resolved.evaluatedRound >= round;
                   return (
                     <td class="pick-cell">
-                      {team ? (
+                      {pick && !revealed ? (
+                        <span class="pick-badge pick-badge--hidden" title="Hidden until deadline">?</span>
+                      ) : team ? (
                         <span
                           class:list={[
                             'pick-badge',
@@ -112,20 +117,22 @@ const alive = getAlivePlayers(resolved);
         </h2>
         <div class="teams-grid">
           {teamsInRound.map((team) => {
-            const pickedBy = alive.filter((p) => {
-              const pick = p.picks.find((pk) => pk.round === resolved.currentRound);
-              return pick?.teamId === team.id;
-            });
+            const pickedBy = currentRoundPicksRevealed
+              ? alive.filter((p) => {
+                  const pick = p.picks.find((pk) => pk.round === resolved.currentRound);
+                  return pick?.teamId === team.id;
+                })
+              : [];
             return (
               <div class="team-card mk-panel" style={`--team-color: ${team.color}`}>
                 <span class="team-card__short">{team.short}</span>
                 <span class="team-card__name">{team.name}</span>
                 <span class="team-card__picked">
-                  {pickedBy.length > 0
-                    ? `Picked by: ${pickedBy.map((p) => p.name).join(', ')}`
-                    : resolved.picksOpen
-                      ? 'No picks yet'
-                      : 'Picks closed'}
+                  {!currentRoundPicksRevealed
+                    ? 'Picks hidden until deadline'
+                    : pickedBy.length > 0
+                      ? `Picked by: ${pickedBy.map((p) => p.name).join(', ')}`
+                      : 'No picks yet'}
                 </span>
               </div>
             );
@@ -239,6 +246,14 @@ const alive = getAlivePlayers(resolved);
 
   .pick-badge--pending {
     opacity: 0.85;
+  }
+
+  .pick-badge--hidden {
+    border-color: var(--text-muted);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.05);
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 0.1em;
   }
 
   .pick-empty {

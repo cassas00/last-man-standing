@@ -13,8 +13,9 @@ import {
   getMatchesForRound,
 } from '../data/game';
 import { getRoundInfo } from '../data/rounds';
-import { formatScheduleTime } from '../utils/schedule';
+import { areRoundPicksRevealed, formatScheduleTime } from '../utils/schedule';
 const resolved = getResolvedGame();
+const picksRevealed = areRoundPicksRevealed(resolved.currentRound, game.matches);
 const picksEntryOpen = resolved.picksOpen;
 const roundInfo = getRoundInfo(resolved.currentRound);
 const alive = getAlivePlayers(resolved);
@@ -64,7 +65,12 @@ const nextOpensLabel = resolved.schedule
             <div class="fighter-grid" id="lms-survivors">
               {alive.map((player, i) => (
                 <div class="animate-slide-up" style={`animation-delay: ${i * 0.1}s`}>
-                  <FighterCard player={player} showPick currentRound={resolved.currentRound} />
+                  <FighterCard
+                    player={player}
+                    showPick
+                    currentRound={resolved.currentRound}
+                    revealPicks={picksRevealed}
+                  />
                 </div>
               ))}
             </div>
@@ -100,6 +106,7 @@ const nextOpensLabel = resolved.schedule
                 <li>Lose or draw — <span class="status-dead">FATALITY</span></li>
                 <li>Results calculated overnight; next round opens at midnight UK time</li>
                 <li>Last fighter standing wins the pool</li>
+                <li>All picks stay hidden until the deadline — use the same device to update yours</li>
                 <li>You can't reuse a team from a previous round</li>
               </ol>
               {resolved.scheduleOk && (

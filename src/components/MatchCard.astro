@@ -1,0 +1,156 @@
+---
+import type { RoundMatch } from '../data/game';
+import { getTeam } from '../data/game';
+import { formatScheduleTime } from '../utils/schedule';
+
+interface Props {
+  match: RoundMatch;
+}
+
+const { match } = Astro.props;
+const home = match.homeTeamId ? getTeam(match.homeTeamId) : undefined;
+const away = match.awayTeamId ? getTeam(match.awayTeamId) : undefined;
+const hasResult = !!match.winnerId;
+const isDraw = !!match.isDraw;
+const homeWon = hasResult && !isDraw && match.winnerId === match.homeTeamId;
+const awayWon = hasResult && !isDraw && match.winnerId === match.awayTeamId;
+const homeName = home?.name ?? match.homeLabel ?? 'TBD';
+const awayName = away?.name ?? match.awayLabel ?? 'TBD';
+const homeShort = home?.short ?? match.homeLabel ?? 'TBD';
+const awayShort = away?.short ?? match.awayLabel ?? 'TBD';
+const homeColor = home?.color ?? 'var(--text-muted)';
+const awayColor = away?.color ?? 'var(--text-muted)';
+---
+
+<div class:list={['match-card', 'mk-panel', { 'match-card--pending': !hasResult }]}>
+  <p class="match-card__label">
+    {match.label}
+    <span class="match-card__match-no">#{match.matchNumber}</span>
+    {match.kickoffAt && (
+      <span class="match-card__kickoff">{formatScheduleTime(match.kickoffAt)}</span>
+    )}
+  </p>
+  <div class="match-card__fighters">
+    <div class:list={['match-card__team', { 'match-card__team--winner': homeWon, 'match-card__team--tbd': !home }]}>
+      <span class="match-card__short" style={`--c: ${homeColor}`}>{homeShort}</span>
+      <span class="match-card__name">{homeName}</span>
+      {homeWon && <span class="match-card__win">W</span>}
+      {isDraw && home && <span class="match-card__draw">D</span>}
+    </div>
+    <span class="match-card__vs">VS</span>
+    <div class:list={['match-card__team', { 'match-card__team--winner': awayWon, 'match-card__team--tbd': !away }]}>
+      <span class="match-card__short" style={`--c: ${awayColor}`}>{awayShort}</span>
+      <span class="match-card__name">{awayName}</span>
+      {awayWon && <span class="match-card__win">W</span>}
+      {isDraw && away && <span class="match-card__draw">D</span>}
+    </div>
+  </div>
+</div>
+
+<style>
+  .match-card {
+    padding: 1rem 1.25rem;
+  }
+
+  .match-card__label {
+    font-size: 0.7rem;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.75rem;
+    text-align: center;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem 0.5rem;
+  }
+
+  .match-card__kickoff {
+    flex-basis: 100%;
+    color: var(--text-muted);
+    text-transform: none;
+    letter-spacing: 0.05em;
+    font-size: 0.65rem;
+  }
+
+  .match-card__match-no {
+    color: var(--text-muted);
+    font-size: 0.65rem;
+  }
+
+  .match-card__fighters {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .match-card__team {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    opacity: 0.5;
+    flex: 1;
+    position: relative;
+  }
+
+  .match-card__team--winner {
+    opacity: 1;
+  }
+
+  .match-card--pending .match-card__team {
+    opacity: 1;
+  }
+
+  .match-card__team--tbd .match-card__short {
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+  }
+
+  .match-card__team--tbd .match-card__name {
+    font-size: 0.7rem;
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  .match-card__short {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    color: var(--c);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--c) 50%, transparent);
+  }
+
+  .match-card__name {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .match-card__win {
+    position: absolute;
+    top: -8px;
+    right: 0;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.9rem;
+    color: var(--gold);
+    text-shadow: 0 0 8px var(--gold);
+  }
+
+  .match-card__draw {
+    position: absolute;
+    top: -8px;
+    right: 0;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+  }
+
+  .match-card__vs {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.2rem;
+    color: var(--red-fire);
+    text-shadow: 0 0 10px var(--red-fire);
+    flex-shrink: 0;
+  }
+</style>

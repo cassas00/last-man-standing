@@ -1,0 +1,55 @@
+---
+interface Props {
+  label: string;
+  picksOpen: boolean;
+  opensAtLabel?: string;
+}
+
+const { label, picksOpen, opensAtLabel } = Astro.props;
+---
+
+<div class:list={['round-phase', { 'round-phase--open': picksOpen }]}>
+  <span class="round-phase__dot"></span>
+  <span class="round-phase__label" data-lms-phase>{label}</span>
+  {opensAtLabel && (
+    <span class="round-phase__opens" data-lms-opens-at>{opensAtLabel}</span>
+  )}
+</div>
+
+<style>
+  .round-phase {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.9rem;
+    border: 1px solid rgba(255, 26, 26, 0.3);
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .round-phase--open {
+    border-color: rgba(57, 255, 20, 0.4);
+  }
+
+  .round-phase__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red-fire);
+    box-shadow: 0 0 8px var(--red-fire);
+  }
+
+  .round-phase--open .round-phase__dot {
+    background: var(--green-alive);
+    box-shadow: 0 0 8px var(--green-alive);
+    animation: pulse-glow 1.5s ease-in-out infinite;
+  }
+
+  .round-phase__opens {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    text-transform: none;
+    letter-spacing: 0.05em;
+  }
+</style>

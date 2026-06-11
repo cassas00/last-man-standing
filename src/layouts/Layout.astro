@@ -1,0 +1,41 @@
+---
+import '../styles/global.css';
+import { gameConfig } from '../lib/game-config';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'Pick a team. Survive the rounds. Last fighter standing wins.' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title} | Last Man Standing</title>
+  </head>
+  <body>
+    <script id="lms-config" type="application/json" set:html={JSON.stringify(gameConfig)} />
+    <div class="site-wrapper">
+      <slot />
+    </div>
+    <script>
+      import '../scripts/game-runtime.ts';
+    </script>
+  </body>
+</html>
+
+<style>
+  .site-wrapper {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+</style>

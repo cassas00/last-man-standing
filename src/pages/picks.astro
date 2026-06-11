@@ -1,0 +1,308 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import RoundCutoff from '../components/RoundCutoff.astro';
+import {
+  game,
+  getTeam,
+  getResolvedGame,
+  getAlivePlayers,
+  getTeamsPlayingInRound,
+} from '../data/game';
+
+const resolved = getResolvedGame();
+const teamsInRound = getTeamsPlayingInRound(
+  resolved.currentRound,
+  game.matches,
+  game.teams,
+);
+const alive = getAlivePlayers(resolved);
+
+function getUsedTeams(playerId: string): string[] {
+  const player = resolved.players.find((p) => p.id === playerId);
+  return player?.picks.map((p) => p.teamId) ?? [];
+}
+---
+
+<Layout title="Picks" description="Every fighter's team picks across all rounds.">
+  <Header />
+  <main class="picks-page">
+    <div class="container">
+      <header class="page-header">
+        <h1 class="page-title mk-glow-text">Team Picks</h1>
+        <p class="page-sub">
+          Choose your warrior. No team twice.
+          {resolved.picksOpen ? ' Picks are open now.' : ` ${resolved.phaseLabel}.`}
+        </p>
+        {resolved.schedule && (
+          <div class="page-cutoff">
+            <RoundCutoff
+              cutoffAt={resolved.schedule.cutoffAt}
+              firstKickoffAt={resolved.schedule.firstKickoffAt}
+              firstMatchNumber={resolved.schedule.firstMatchNumber}
+              picksOpen={resolved.picksOpen}
+            />
+          </div>
+        )}
+      </header>
+
+      <div class="picks-table-wrapper mk-panel">
+        <table class="picks-table">
+          <thead>
+            <tr>
+              <th>Fighter</th>
+              {Array.from({ length: resolved.totalRounds }, (_, i) => (
+                <th>R{i + 1}</th>
+              ))}
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resolved.players.map((player) => (
+              <tr class:list={[{ 'row--dead': player.eliminated }]}>
+                <td class="fighter-cell">
+                  <span class="fighter-cell__alias">{player.alias}</span>
+                  <span class="fighter-cell__name">{player.name}</span>
+                </td>
+                {Array.from({ length: resolved.totalRounds }, (_, i) => {
+                  const round = i + 1;
+                  const pick = player.picks.find((p) => p.round === round);
+                  const team = pick ? getTeam(pick.teamId) : undefined;
+                  const evaluated = resolved.evaluatedRound >= round;
+                  return (
+                    <td class="pick-cell">
+                      {team ? (
+                        <span
+                          class:list={[
+                            'pick-badge',
+                            evaluated && pick?.won ? 'pick-badge--win' : '',
+                            evaluated && pick && !pick.won ? 'pick-badge--loss' : '',
+                            !evaluated ? 'pick-badge--pending' : '',
+                          ]}
+                          style={`--team-color: ${team.color}`}
+                          title={
+                            !evaluated
+                              ? 'Pending'
+                              : pick?.won
+                                ? 'Win'
+                                : 'Loss'
+                          }
+                        >
+                          {team.short}
+                        </span>
+                      ) : (
+                        <span class="pick-empty">—</span>
+                      )}
+                    </td>
+                  );
+                })}
+                <td>
+                  <span class:list={['status-badge', player.eliminated ? 'status-dead' : 'status-alive']}>
+                    {player.eliminated ? `R${player.eliminatedRound}` : 'ALIVE'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <section class="teams-section">
+        <h2 class="section-title mk-gold-text">
+          Teams Playing Round {resolved.currentRound}
+        </h2>
+        <div class="teams-grid">
+          {teamsInRound.map((team) => {
+            const pickedBy = alive.filter((p) => {
+              const used = getUsedTeams(p.id);
+              return used.includes(team.id);
+            });
+            return (
+              <div class="team-card mk-panel" style={`--team-color: ${team.color}`}>
+                <span class="team-card__short">{team.short}</span>
+                <span class="team-card__name">{team.name}</span>
+                <span class="team-card__picked">
+                  {pickedBy.length > 0
+                    ? `Used by: ${pickedBy.map((p) => p.alias).join(', ')}`
+                    : resolved.picksOpen
+                      ? 'Available to pick'
+                      : 'Picks closed'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>Last Man Standing · {game.subtitle} · {new Date().getFullYear()}</p>
+  </footer>
+</Layout>
+
+<style>
+  .picks-page {
+    padding: 2rem 0 3rem;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  .page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .page-title {
+    font-size: clamp(2.5rem, 8vw, 4rem);
+    color: var(--red-fire);
+  }
+
+  .page-sub {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    margin-top: 0.5rem;
+  }
+
+  .page-cutoff {
+    max-width: 360px;
+    margin: 1.25rem auto 0;
+  }
+
+  .picks-table-wrapper {
+    overflow-x: auto;
+    margin-bottom: 2.5rem;
+    padding: 0;
+  }
+
+  .picks-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+
+  .picks-table th {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+    color: var(--gold);
+    padding: 1rem;
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 26, 26, 0.3);
+    white-space: nowrap;
+  }
+
+  .picks-table th:first-child {
+    text-align: left;
+  }
+
+  .picks-table td {
+    padding: 0.75rem 1rem;
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .row--dead {
+    opacity: 0.5;
+  }
+
+  .fighter-cell {
+    text-align: left !important;
+  }
+
+  .fighter-cell__alias {
+    display: block;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.8rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+  }
+
+  .fighter-cell__name {
+    font-weight: 600;
+  }
+
+  .pick-badge {
+    display: inline-block;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.9rem;
+    padding: 0.2rem 0.5rem;
+    background: color-mix(in srgb, var(--team-color) 25%, transparent);
+    border: 1px solid var(--team-color);
+    color: var(--team-color);
+    letter-spacing: 0.05em;
+  }
+
+  .pick-badge--win {
+    box-shadow: 0 0 8px rgba(57, 255, 20, 0.3);
+  }
+
+  .pick-badge--loss {
+    opacity: 0.6;
+    text-decoration: line-through;
+    border-color: var(--red-blood);
+    color: var(--red-fire);
+  }
+
+  .pick-badge--pending {
+    opacity: 0.85;
+  }
+
+  .pick-empty {
+    color: var(--text-muted);
+  }
+
+  .status-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+
+  .section-title {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+  }
+
+  .teams-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .team-card {
+    padding: 1rem;
+    text-align: center;
+    border-left: 3px solid var(--team-color);
+  }
+
+  .team-card__short {
+    display: block;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    color: var(--team-color);
+  }
+
+  .team-card__name {
+    display: block;
+    font-size: 0.9rem;
+    margin: 0.25rem 0 0.5rem;
+  }
+
+  .team-card__picked {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+  }
+
+  .footer {
+    text-align: center;
+    padding: 1.5rem;
+    border-top: 1px solid rgba(255, 26, 26, 0.2);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: auto;
+  }
+</style>

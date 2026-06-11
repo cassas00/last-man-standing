@@ -1,0 +1,100 @@
+---
+import RoundCutoff from './RoundCutoff.astro';
+import RoundPhase from './RoundPhase.astro';
+import type { RoundSchedule } from '../utils/schedule';
+import { formatScheduleTime } from '../utils/schedule';
+
+interface Props {
+  round: number;
+  totalRounds: number;
+  aliveCount: number;
+  phaseLabel: string;
+  picksOpen: boolean;
+  schedule?: RoundSchedule;
+}
+
+const { round, totalRounds, aliveCount, phaseLabel, picksOpen, schedule } = Astro.props;
+const opensAtLabel =
+  schedule && !picksOpen
+    ? `Opens ${formatScheduleTime(schedule.opensAt)}`
+    : undefined;
+---
+
+<section class="round-banner animate-fight">
+  <div class="round-banner__inner">
+    <p class="round-banner__pre">Round</p>
+    <h1 class="round-banner__number mk-glow-text" data-lms-round>{round}</h1>
+    <p class="round-banner__of">of {totalRounds}</p>
+    <RoundPhase label={phaseLabel} picksOpen={picksOpen} opensAtLabel={opensAtLabel} />
+    <div class="round-banner__stats">
+      <span class="round-banner__stat">
+        <strong class="status-alive" data-lms-alive>{aliveCount}</strong> fighters alive
+      </span>
+    </div>
+    {schedule && (
+      <div class="round-banner__cutoff">
+        <RoundCutoff
+          cutoffAt={schedule.cutoffAt}
+          firstKickoffAt={schedule.firstKickoffAt}
+          firstMatchNumber={schedule.firstMatchNumber}
+          picksOpen={picksOpen}
+        />
+      </div>
+    )}
+  </div>
+</section>
+
+<style>
+  .round-banner {
+    text-align: center;
+    padding: 3rem 1rem 2rem;
+  }
+
+  .round-banner__inner {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .round-banner__pre {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    letter-spacing: 0.3em;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+
+  .round-banner__number {
+    font-size: clamp(5rem, 15vw, 8rem);
+    line-height: 1;
+    color: var(--red-fire);
+    margin: 0.25rem 0;
+  }
+
+  .round-banner__of {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  .round-banner__stats {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 26, 26, 0.2);
+  }
+
+  .round-banner__stat {
+    font-size: 1.2rem;
+    letter-spacing: 0.05em;
+  }
+
+  .round-banner__stat strong {
+    font-size: 2rem;
+    font-family: 'Bebas Neue', sans-serif;
+  }
+
+  .round-banner__cutoff {
+    margin-top: 1.25rem;
+  }
+</style>

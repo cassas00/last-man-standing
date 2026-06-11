@@ -1,0 +1,163 @@
+---
+import type { ResolvedPlayer } from '../utils/engine';
+import { getTeam } from '../data/game';
+
+interface Props {
+  player: ResolvedPlayer;
+  showPick?: boolean;
+  currentRound?: number;
+}
+
+const { player, showPick = false, currentRound } = Astro.props;
+const currentPick = currentRound
+  ? player.picks.find((p) => p.round === currentRound)
+  : player.picks[player.picks.length - 1];
+const pickTeam = currentPick ? getTeam(currentPick.teamId) : undefined;
+---
+
+<article class:list={['fighter-card', 'mk-panel', { 'fighter-card--dead': player.eliminated }]}>
+  {player.eliminated && <div class="fighter-card__fatality">FATALITY</div>}
+  <div class="fighter-card__header">
+    <span class="fighter-card__alias">{player.alias}</span>
+    <span class:list={['fighter-card__status', player.eliminated ? 'status-dead' : 'status-alive']}>
+      {player.eliminated ? 'ELIMINATED' : 'ALIVE'}
+    </span>
+  </div>
+  <h3 class="fighter-card__name">{player.name}</h3>
+  {showPick && pickTeam && (
+    <div class="fighter-card__pick">
+      <span class="fighter-card__pick-label">Pick</span>
+      <span class="fighter-card__team" style={`--team-color: ${pickTeam.color}`}>
+        {pickTeam.short}
+      </span>
+      {currentPick && !player.eliminated && currentPick.won !== null && (
+        <span class:list={['fighter-card__result', currentPick.won ? 'status-alive' : 'status-dead']}>
+          {currentPick.won ? 'WIN' : 'LOSS'}
+        </span>
+      )}
+      {currentPick && !player.eliminated && currentPick.won === null && (
+        <span class="fighter-card__result" style="color: var(--text-muted)">PENDING</span>
+      )}
+    </div>
+  )}
+  {player.eliminated && player.eliminatedRound && (
+    <p class="fighter-card__round-dead">Fell in Round {player.eliminatedRound}</p>
+  )}
+  <div class="fighter-card__health">
+    <div
+      class="fighter-card__health-bar"
+      style={`width: ${player.eliminated ? '0' : '100'}%`}
+    ></div>
+  </div>
+</article>
+
+<style>
+  .fighter-card {
+    padding: 1.25rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .fighter-card:hover:not(.fighter-card--dead) {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 30px rgba(255, 26, 26, 0.2);
+  }
+
+  .fighter-card--dead {
+    opacity: 0.55;
+    filter: grayscale(0.6);
+  }
+
+  .fighter-card__fatality {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-12deg);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    color: var(--red-fire);
+    text-shadow: 0 0 20px var(--red-fire);
+    opacity: 0.3;
+    pointer-events: none;
+    letter-spacing: 0.2em;
+  }
+
+  .fighter-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .fighter-card__alias {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.85rem;
+    color: var(--gold);
+    letter-spacing: 0.15em;
+  }
+
+  .fighter-card__status {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+
+  .fighter-card__name {
+    font-size: 1.3rem;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+  }
+
+  .fighter-card__pick {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .fighter-card__pick-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .fighter-card__team {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.1rem;
+    padding: 0.15rem 0.6rem;
+    background: color-mix(in srgb, var(--team-color) 30%, transparent);
+    border: 1px solid var(--team-color);
+    color: var(--team-color);
+    letter-spacing: 0.1em;
+  }
+
+  .fighter-card__result {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+
+  .fighter-card__round-dead {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .fighter-card__health {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+  }
+
+  .fighter-card__health-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green-alive), #2ecc71);
+    transition: width 0.5s ease;
+    box-shadow: 0 0 8px var(--green-alive);
+  }
+
+  .fighter-card--dead .fighter-card__health-bar {
+    background: var(--red-blood);
+    box-shadow: none;
+  }
+</style>

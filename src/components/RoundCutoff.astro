@@ -1,0 +1,82 @@
+---
+import { formatScheduleTime } from '../utils/schedule';
+
+interface Props {
+  cutoffAt: string;
+  firstKickoffAt: string;
+  firstMatchNumber: number;
+  picksOpen: boolean;
+}
+
+const { cutoffAt, firstKickoffAt, firstMatchNumber, picksOpen } = Astro.props;
+const cutoffLabel = formatScheduleTime(cutoffAt);
+const kickoffLabel = formatScheduleTime(firstKickoffAt);
+---
+
+<div
+  class:list={['round-cutoff', 'mk-panel', { 'round-cutoff--closed': !picksOpen }]}
+  data-cutoff-at={cutoffAt}
+>
+  <p class="round-cutoff__label">Pick deadline</p>
+  <p class="round-cutoff__time mk-gold-text">{cutoffLabel}</p>
+  <p
+    class:list={['round-cutoff__status', picksOpen ? 'round-cutoff__status--open' : 'round-cutoff__status--closed']}
+    data-cutoff-status
+  >
+    {picksOpen ? 'Picks open' : 'Picks closed'}
+  </p>
+  <p class="round-cutoff__detail">
+    90 min before first kick-off · Match #{firstMatchNumber} at {kickoffLabel}
+  </p>
+</div>
+
+<style>
+  .round-cutoff {
+    padding: 1rem 1.25rem;
+    text-align: center;
+    border: 1px solid rgba(255, 215, 0, 0.25);
+  }
+
+  .round-cutoff--closed {
+    border-color: rgba(255, 26, 26, 0.4);
+    opacity: 0.85;
+  }
+
+  .round-cutoff__label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.25rem;
+  }
+
+  .round-cutoff__time {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.4rem;
+    letter-spacing: 0.05em;
+    line-height: 1.2;
+  }
+
+  .round-cutoff__status {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    margin-top: 0.5rem;
+    text-transform: uppercase;
+  }
+
+  .round-cutoff__status--open {
+    color: var(--green-alive);
+  }
+
+  .round-cutoff__status--closed {
+    color: var(--red-fire);
+  }
+
+  .round-cutoff__detail {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+    line-height: 1.4;
+  }
+</style>

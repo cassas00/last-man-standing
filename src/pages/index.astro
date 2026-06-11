@@ -1,0 +1,257 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import RoundBanner from '../components/RoundBanner.astro';
+import FighterCard from '../components/FighterCard.astro';
+import MatchCard from '../components/MatchCard.astro';
+import {
+  game,
+  getResolvedGame,
+  getAlivePlayers,
+  getMatchesForRound,
+} from '../data/game';
+import { getRoundInfo } from '../data/rounds';
+import { formatScheduleTime } from '../utils/schedule';
+const resolved = getResolvedGame();
+const picksEntryOpen = resolved.picksOpen;
+const roundInfo = getRoundInfo(resolved.currentRound);
+const alive = getAlivePlayers(resolved);
+const roundMatches = getMatchesForRound(resolved.currentRound);
+const nextOpensLabel = resolved.schedule
+  ? formatScheduleTime(resolved.schedule.opensAt)
+  : undefined;
+---
+
+<Layout title="Arena">
+  <Header />
+  <main>
+    {picksEntryOpen && (
+      <div class="enter-cta mk-panel">
+        <p class="enter-cta__text">
+          Round {resolved.currentRound} picks are open — submit your team before the deadline.
+        </p>
+        <a href="/enter" class="enter-cta__link">Submit Pick →</a>
+      </div>
+    )}
+
+    <RoundBanner
+      round={resolved.currentRound}
+      totalRounds={resolved.totalRounds}
+      aliveCount={resolved.aliveCount}
+      phaseLabel={resolved.phaseLabel}
+      picksOpen={resolved.picksOpen}
+      schedule={resolved.schedule}
+    />
+
+    <div id="lms-winner" style={resolved.winner ? '' : 'display: none'}>
+      {resolved.winner && (
+        <div class="final-warning mk-panel winner-banner">
+          <p class="final-warning__text">🏆 {resolved.winner.alias} WINS 🏆</p>
+          <p class="final-warning__sub">{resolved.winner.name} is the last fighter standing.</p>
+        </div>
+      )}
+    </div>
+
+    <section class="arena-section">
+      <div class="container">
+        <div class="arena-grid">
+          <div class="arena-main">
+            <h2 class="section-title mk-gold-text">Survivors</h2>
+            <div class="fighter-grid" id="lms-survivors">
+              {alive.map((player, i) => (
+                <div class="animate-slide-up" style={`animation-delay: ${i * 0.1}s`}>
+                  <FighterCard player={player} showPick currentRound={resolved.currentRound} />
+                </div>
+              ))}
+            </div>
+
+            {alive.length <= 3 && alive.length > 0 && resolved.phase !== 'tournament-over' && (
+              <div class="final-warning mk-panel">
+                <p class="final-warning__text">⚔ FINAL KOMBAT APPROACHING ⚔</p>
+                <p class="final-warning__sub">Only {alive.length} fighter{alive.length !== 1 ? 's' : ''} remain. Pick wisely.</p>
+              </div>
+            )}
+          </div>
+
+          <aside class="arena-sidebar">
+            <h2 class="section-title mk-gold-text">
+              {roundInfo?.name ?? `Round ${resolved.currentRound}`}
+            </h2>
+            {roundInfo?.dates && <p class="round-dates">{roundInfo.dates} · {roundMatches.length} fixtures</p>}
+            {resolved.phase === 'scoring' && nextOpensLabel && (
+              <p class="round-status mk-gold-text">Results updating · Round {resolved.currentRound + 1} opens {nextOpensLabel}</p>
+            )}
+            <div class="match-list">
+              {roundMatches.map((match) => (
+                <MatchCard match={match} />
+              ))}
+            </div>
+
+            <div class="rules mk-panel">
+              <h3 class="rules__title">Kombat Rules</h3>
+              <ol class="rules__list">
+                <li>Pick one team playing that round</li>
+                <li>Picks lock 90 min before the first kick-off</li>
+                <li>Win — advance to the next round</li>
+                <li>Lose or draw — <span class="status-dead">FATALITY</span></li>
+                <li>Results calculated overnight; next round opens at midnight UK time</li>
+                <li>Last fighter standing wins the pool</li>
+                <li>No team can be picked twice</li>
+              </ol>
+              {resolved.scheduleOk && (
+                <p class="rules__note">✓ LMS rounds align with World Cup matchdays — no overlap between rounds.</p>
+              )}
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Last Man Standing · {game.subtitle} · {new Date().getFullYear()}</p>
+  </footer>
+</Layout>
+
+<style>
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1.5rem 3rem;
+  }
+
+  .enter-cta {
+    max-width: 700px;
+    margin: 0 auto 1rem;
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    border-color: rgba(255, 215, 0, 0.35);
+  }
+
+  .enter-cta__text {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+  }
+
+  .enter-cta__link {
+    font-family: 'Bebas Neue', sans-serif;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+  }
+
+  .winner-banner {
+    max-width: 600px;
+    margin: 0 auto 1rem;
+    text-align: center;
+  }
+
+  .arena-section {
+    padding-bottom: 2rem;
+  }
+
+  .arena-grid {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 215, 0, 0.2);
+  }
+
+  .fighter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+
+  .final-warning {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    text-align: center;
+  }
+
+  .final-warning__text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    color: var(--red-fire);
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 15px var(--red-fire);
+    animation: fight-flash 2s ease-in-out infinite;
+  }
+
+  .final-warning__sub {
+    margin-top: 0.5rem;
+    color: var(--text-muted);
+  }
+
+  .round-dates {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: -0.75rem 0 1rem;
+  }
+
+  .round-status {
+    font-size: 0.85rem;
+    margin: -0.5rem 0 1rem;
+  }
+
+  .match-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .rules {
+    padding: 1.25rem;
+  }
+
+  .rules__title {
+    font-size: 1.1rem;
+    color: var(--gold);
+    margin-bottom: 0.75rem;
+  }
+
+  .rules__list {
+    padding-left: 1.25rem;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+  }
+
+  .rules__list li {
+    margin-bottom: 0.4rem;
+  }
+
+  .rules__note {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--green-alive);
+  }
+
+  .footer {
+    text-align: center;
+    padding: 1.5rem;
+    border-top: 1px solid rgba(255, 26, 26, 0.2);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: auto;
+  }
+
+  @media (max-width: 900px) {
+    .arena-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,0 +1,162 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-dark: #0a0a0a;
+  --bg-panel: #111111;
+  --bg-card: #1a1a1a;
+  --red-blood: #8b0000;
+  --red-fire: #ff1a1a;
+  --red-glow: #ff3333;
+  --gold: #ffd700;
+  --gold-dim: #b8860b;
+  --text-primary: #f0f0f0;
+  --text-muted: #888888;
+  --green-alive: #39ff14;
+  --border-angle: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Rajdhani', sans-serif;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(139, 0, 0, 0.25) 0%, transparent 60%),
+    radial-gradient(ellipse at 50% 100%, rgba(139, 0, 0, 0.15) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.08) 2px,
+    rgba(0, 0, 0, 0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+h1, h2, h3, .mk-title {
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.mk-glow-text {
+  text-shadow:
+    0 0 10px var(--red-glow),
+    0 0 30px var(--red-blood),
+    0 0 60px rgba(139, 0, 0, 0.5);
+}
+
+.mk-gold-text {
+  color: var(--gold);
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+}
+
+.mk-panel {
+  background: var(--bg-panel);
+  border: 1px solid rgba(255, 26, 26, 0.3);
+  clip-path: var(--border-angle);
+  position: relative;
+}
+
+.mk-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--red-fire), transparent);
+}
+
+.mk-btn {
+  display: inline-block;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.1rem;
+  letter-spacing: 0.15em;
+  padding: 0.6rem 1.8rem;
+  background: linear-gradient(180deg, var(--red-fire) 0%, var(--red-blood) 100%);
+  color: white;
+  border: none;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  text-transform: uppercase;
+}
+
+.mk-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(255, 26, 26, 0.5);
+}
+
+.mk-btn--ghost {
+  background: transparent;
+  border: 1px solid var(--red-fire);
+  color: var(--red-fire);
+}
+
+.status-alive {
+  color: var(--green-alive);
+  text-shadow: 0 0 8px rgba(57, 255, 20, 0.5);
+}
+
+.status-dead {
+  color: var(--red-fire);
+  text-shadow: 0 0 8px rgba(255, 26, 26, 0.3);
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes fight-flash {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fight {
+  animation: fight-flash 2s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.6s ease-out forwards;
+}

@@ -1,0 +1,181 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/Header.astro';
+import FighterCard from '../components/FighterCard.astro';
+import RoundTimeline from '../components/RoundTimeline.astro';
+import {
+  game,
+  getResolvedGame,
+  getAlivePlayers,
+  getEliminatedPlayers,
+} from '../data/game';
+
+const resolved = getResolvedGame();
+const alive = getAlivePlayers(resolved);
+const eliminated = getEliminatedPlayers(resolved).sort(
+  (a, b) => (b.eliminatedRound ?? 0) - (a.eliminatedRound ?? 0)
+);
+---
+
+<Layout title="Standings" description="Who's still alive and who got fatality'd.">
+  <Header />
+  <main class="standings-page">
+    <div class="container">
+      <header class="page-header">
+        <h1 class="page-title mk-glow-text">Standings</h1>
+        <p class="page-sub">The graveyard grows. The survivors shrink.</p>
+        <p class="page-phase" data-lms-phase>{resolved.phaseLabel}</p>
+      </header>
+
+      <div class="stats-bar mk-panel">
+        <div class="stat">
+          <span class="stat__value status-alive" data-lms-alive>{resolved.aliveCount}</span>
+          <span class="stat__label">Alive</span>
+        </div>
+        <div class="stat">
+          <span class="stat__value status-dead" data-lms-eliminated>{resolved.eliminatedCount}</span>
+          <span class="stat__label">Eliminated</span>
+        </div>
+        <div class="stat">
+          <span class="stat__value mk-gold-text" data-lms-round>{resolved.currentRound}</span>
+          <span class="stat__label">Current Round</span>
+        </div>
+        <div class="stat">
+          <span class="stat__value">{game.players.length}</span>
+          <span class="stat__label">Total Fighters</span>
+        </div>
+      </div>
+
+      <div class="standings-grid">
+        <section>
+          <h2 class="section-title status-alive">⚔ Survivors</h2>
+          <div class="fighter-grid" id="lms-survivors">
+            {alive.map((player) => (
+              <FighterCard player={player} showPick currentRound={resolved.currentRound} />
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h2 class="section-title status-dead">☠ The Fallen</h2>
+          <div class="fighter-grid" id="lms-fallen">
+            {eliminated.map((player) => (
+              <FighterCard player={player} />
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <section class="timeline-section mk-panel">
+        <h2 class="section-title mk-gold-text">Round Schedule</h2>
+        <RoundTimeline
+          matches={game.matches}
+          currentRound={resolved.currentRound}
+          totalRounds={resolved.totalRounds}
+        />
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>Last Man Standing · {game.subtitle} · {new Date().getFullYear()}</p>
+  </footer>
+</Layout>
+
+<style>
+  .standings-page {
+    padding: 2rem 0 3rem;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  .page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .page-title {
+    font-size: clamp(2.5rem, 8vw, 4rem);
+    color: var(--red-fire);
+  }
+
+  .page-sub {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    margin-top: 0.5rem;
+  }
+
+  .page-phase {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    padding: 1.5rem;
+    margin-bottom: 2.5rem;
+    text-align: center;
+  }
+
+  .stat__value {
+    display: block;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.5rem;
+    line-height: 1;
+  }
+
+  .stat__label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .standings-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .section-title {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .fighter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+
+  .timeline-section {
+    padding: 1.5rem;
+  }
+
+  .footer {
+    text-align: center;
+    padding: 1.5rem;
+    border-top: 1px solid rgba(255, 26, 26, 0.2);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: auto;
+  }
+
+  @media (max-width: 600px) {
+    .stats-bar {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>

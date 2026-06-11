@@ -1,0 +1,501 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { gameConfig } from '../lib/game-config';
+import { rounds } from '../data/rounds';
+---
+
+<Layout title="Admin" description="Tournament admin">
+  <main class="admin-page">
+    <div class="container">
+      <header class="page-header">
+        <p class="page-kicker mk-gold-text">Sub-Zero Control</p>
+        <h1 class="page-title mk-glow-text">Admin</h1>
+        <p class="page-sub">Enter match results to update eliminations and standings.</p>
+      </header>
+
+      <section id="login-section" class="admin-panel mk-panel">
+        <h2 class="section-title mk-gold-text">Sign in</h2>
+        <form id="login-form" class="admin-form">
+          <label class="field">
+            <span class="field__label">Username</span>
+            <input type="text" id="admin-user" class="field__input" autocomplete="username" required />
+          </label>
+          <label class="field">
+            <span class="field__label">Password</span>
+            <input type="password" id="admin-pass" class="field__input" autocomplete="current-password" required />
+          </label>
+          <button type="submit" class="admin-btn">Enter</button>
+        </form>
+        <p id="login-error" class="admin-error" hidden></p>
+      </section>
+
+      <section id="admin-section" class="admin-dashboard" hidden>
+        <div class="admin-toolbar mk-panel">
+          <div class="admin-toolbar__left">
+            <label class="field field--inline">
+              <span class="field__label">LMS round</span>
+              <select id="round-filter" class="field__input">
+                {rounds.map((r) => (
+                  <option value={r.round}>{r.round}. {r.name}</option>
+                ))}
+              </select>
+            </label>
+            <p id="round-summary" class="round-summary"></p>
+          </div>
+          <div class="admin-toolbar__right">
+            <button type="button" id="reset-btn" class="admin-btn admin-btn--danger">Clear all data</button>
+            <button type="button" id="logout-btn" class="admin-btn admin-btn--ghost">Sign out</button>
+          </div>
+        </div>
+
+        <p id="admin-status" class="admin-status" hidden></p>
+        <div id="match-admin-list" class="match-admin-list"></div>
+      </section>
+
+      <p class="admin-footer">
+        <a href="/" class="admin-link">← Back to Arena</a>
+      </p>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { gameConfig } from '../lib/game-config';
+  import { getTeam } from '../data/game';
+  import { formatScheduleTime } from '../utils/schedule';
+  import { applyResults } from '../lib/apply-results';
+  import type { ResultsState } from '../types/results';
+  import type { RoundMatch } from '../data/game';
+  import {
+    adminLogin,
+    clearAdminSession,
+    getAdminToken,
+    loadResults,
+    resetAllData,
+    saveMatchResult,
+  } from '../lib/results-store';
+
+  const loginSection = document.getElementById('login-section') as HTMLElement;
+  const adminSection = document.getElementById('admin-section') as HTMLElement;
+  const loginForm = document.getElementById('login-form') as HTMLFormElement;
+  const loginError = document.getElementById('login-error') as HTMLElement;
+  const roundFilter = document.getElementById('round-filter') as HTMLSelectElement;
+  const matchList = document.getElementById('match-admin-list') as HTMLElement;
+  const roundSummary = document.getElementById('round-summary') as HTMLElement;
+  const adminStatus = document.getElementById('admin-status') as HTMLElement;
+  const logoutBtn = document.getElementById('logout-btn') as HTMLButtonElement;
+  const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
+
+  const baseMatches = gameConfig.matches;
+  let resultsState: ResultsState = { version: 1, results: {} };
+  let savingMatch: number | null = null;
+
+  function setStatus(message: string, type: 'ok' | 'error' | 'info' = 'info') {
+    adminStatus.hidden = false;
+    adminStatus.textContent = message;
+    adminStatus.className = `admin-status admin-status--${type}`;
+  }
+
+  function showDashboard() {
+    loginSection.hidden = true;
+    adminSection.hidden = false;
+  }
+
+  function showLogin() {
+    loginSection.hidden = false;
+    adminSection.hidden = true;
+  }
+
+  function currentMatches(): RoundMatch[] {
+    return applyResults(baseMatches, resultsState);
+  }
+
+  function matchResult(match: RoundMatch) {
+    if (match.isDraw) return { type: 'draw' as const };
+    if (match.winnerId) return { type: 'winner' as const, winnerId: match.winnerId };
+    return { type: 'pending' as const };
+  }
+
+  function renderMatches() {
+    const round = Number(roundFilter.value);
+    const matches = currentMatches().filter((m) => m.round === round);
+    const withTeams = matches.filter((m) => m.homeTeamId && m.awayTeamId).length;
+    const scored = matches.filter((m) => m.winnerId || m.isDraw).length;
+
+    roundSummary.textContent = `${scored}/${matches.length} results entered · ${withTeams} matches with known teams`;
+
+    matchList.innerHTML = matches
+      .map((match) => {
+        const home = match.homeTeamId ? getTeam(match.homeTeamId) : null;
+        const away = match.awayTeamId ? getTeam(match.awayTeamId) : null;
+        const homeName = home?.name ?? match.homeLabel ?? 'TBD';
+        const awayName = away?.name ?? match.awayLabel ?? 'TBD';
+        const result = matchResult(match);
+        const canScore = !!(match.homeTeamId && match.awayTeamId);
+        const kickoff = match.kickoffAt ? formatScheduleTime(match.kickoffAt) : '';
+        const busy = savingMatch === match.matchNumber;
+
+        const resultLabel =
+          result.type === 'draw'
+            ? 'Draw'
+            : result.type === 'winner'
+              ? getTeam(result.winnerId)?.short ?? result.winnerId
+              : 'Pending';
+
+        const actions = canScore
+          ? `<div class="match-admin__actions">
+              <button type="button" class="result-btn ${result.type === 'winner' && result.winnerId === match.homeTeamId ? 'result-btn--active' : ''}" data-action="home" data-match="${match.matchNumber}" ${busy ? 'disabled' : ''}>
+                ${home?.short ?? 'Home'} win
+              </button>
+              <button type="button" class="result-btn ${result.type === 'draw' ? 'result-btn--active' : ''}" data-action="draw" data-match="${match.matchNumber}" ${busy ? 'disabled' : ''}>Draw</button>
+              <button type="button" class="result-btn ${result.type === 'winner' && result.winnerId === match.awayTeamId ? 'result-btn--active' : ''}" data-action="away" data-match="${match.matchNumber}" ${busy ? 'disabled' : ''}>
+                ${away?.short ?? 'Away'} win
+              </button>
+              <button type="button" class="result-btn result-btn--clear" data-action="clear" data-match="${match.matchNumber}" ${busy ? 'disabled' : ''}>Clear</button>
+            </div>`
+          : `<p class="match-admin__tbd">Teams TBD — set result once bracket is confirmed.</p>`;
+
+        return `<article class="match-admin mk-panel ${result.type !== 'pending' ? 'match-admin--scored' : ''}">
+          <div class="match-admin__head">
+            <span class="match-admin__label">${match.label} · #${match.matchNumber}</span>
+            <span class="match-admin__result">${resultLabel}</span>
+          </div>
+          <p class="match-admin__teams">${homeName} vs ${awayName}</p>
+          ${kickoff ? `<p class="match-admin__kickoff">${kickoff}</p>` : ''}
+          ${actions}
+        </article>`;
+      })
+      .join('');
+  }
+
+  async function refreshResults() {
+    resultsState = await loadResults();
+    renderMatches();
+  }
+
+  async function handleResultAction(matchNumber: number, action: string) {
+    const match = baseMatches.find((m) => m.matchNumber === matchNumber);
+    if (!match?.homeTeamId || !match.awayTeamId) return;
+
+    let payload: Parameters<typeof saveMatchResult>[0];
+
+    if (action === 'home') {
+      payload = { matchNumber, winnerId: match.homeTeamId };
+    } else if (action === 'away') {
+      payload = { matchNumber, winnerId: match.awayTeamId };
+    } else if (action === 'draw') {
+      payload = { matchNumber, isDraw: true };
+    } else if (action === 'clear') {
+      payload = { matchNumber, clear: true };
+    } else {
+      return;
+    }
+
+    savingMatch = matchNumber;
+    renderMatches();
+
+    const result = await saveMatchResult(payload);
+    savingMatch = null;
+
+    if (result.ok && result.state) {
+      resultsState = result.state;
+      setStatus(`Match #${matchNumber} updated.`, 'ok');
+    } else {
+      setStatus(result.error ?? 'Could not save result.', 'error');
+    }
+
+    renderMatches();
+  }
+
+  matchList.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
+    if (!btn) return;
+    const matchNumber = Number(btn.dataset.match);
+    const action = btn.dataset.action;
+    if (matchNumber && action) void handleResultAction(matchNumber, action);
+  });
+
+  roundFilter.addEventListener('change', renderMatches);
+
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    loginError.hidden = true;
+
+    const username = (document.getElementById('admin-user') as HTMLInputElement).value.trim();
+    const password = (document.getElementById('admin-pass') as HTMLInputElement).value;
+
+    const result = await adminLogin(username, password);
+    if (!result.ok) {
+      loginError.hidden = false;
+      loginError.textContent = result.error ?? 'Login failed.';
+      return;
+    }
+
+    showDashboard();
+    await refreshResults();
+  });
+
+  resetBtn.addEventListener('click', async () => {
+    if (!confirm('Clear all player entries and match results? This cannot be undone.')) return;
+    resetBtn.disabled = true;
+    const result = await resetAllData();
+    resetBtn.disabled = false;
+    if (result.ok) {
+      resultsState = { version: 1, results: {} };
+      setStatus('All pool data cleared.', 'ok');
+      renderMatches();
+    } else {
+      setStatus(result.error ?? 'Could not clear data.', 'error');
+    }
+  });
+
+  logoutBtn.addEventListener('click', () => {
+    clearAdminSession();
+    showLogin();
+    loginForm.reset();
+  });
+
+  if (getAdminToken()) {
+    showDashboard();
+    void refreshResults();
+  }
+</script>
+
+<style>
+  .admin-page {
+    min-height: 100vh;
+    padding: 2rem 0 3rem;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  .page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .page-kicker {
+    font-size: 0.85rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+
+  .page-title {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .page-sub {
+    color: var(--text-muted);
+  }
+
+  .admin-panel,
+  .admin-toolbar {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .section-title {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+  }
+
+  .admin-form {
+    display: grid;
+    gap: 1rem;
+    max-width: 360px;
+  }
+
+  .field {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .field--inline {
+    min-width: 260px;
+  }
+
+  .field__label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .field__input {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 26, 26, 0.3);
+    color: var(--text);
+    padding: 0.65rem 0.85rem;
+    font: inherit;
+  }
+
+  .admin-btn {
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 0.12em;
+    background: var(--red-fire);
+    color: #fff;
+    border: none;
+    padding: 0.7rem 1.25rem;
+    cursor: pointer;
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  }
+
+  .admin-btn--ghost {
+    background: transparent;
+    border: 1px solid rgba(255, 26, 26, 0.4);
+    color: var(--text-muted);
+  }
+
+  .admin-error {
+    margin-top: 1rem;
+    color: var(--red-fire);
+    font-size: 0.9rem;
+  }
+
+  .admin-toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .admin-toolbar__right {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .admin-btn--danger {
+    background: transparent;
+    border: 1px solid rgba(255, 26, 26, 0.6);
+    color: var(--red-fire);
+  }
+
+  .round-summary {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .admin-status {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .admin-status--ok {
+    color: var(--green-alive);
+    border: 1px solid rgba(46, 204, 113, 0.3);
+  }
+
+  .admin-status--error {
+    color: var(--red-fire);
+    border: 1px solid rgba(255, 26, 26, 0.3);
+  }
+
+  .admin-status--info {
+    color: var(--text-muted);
+  }
+
+  .match-admin-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .match-admin {
+    padding: 1rem 1.25rem;
+  }
+
+  .match-admin--scored {
+    border-color: rgba(46, 204, 113, 0.25);
+  }
+
+  .match-admin__head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .match-admin__label {
+    font-size: 0.75rem;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .match-admin__result {
+    font-family: 'Bebas Neue', sans-serif;
+    color: var(--green-alive);
+    letter-spacing: 0.1em;
+  }
+
+  .match-admin__teams {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+
+  .match-admin__kickoff {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+  }
+
+  .match-admin__tbd {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .match-admin__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .result-btn {
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 0.08em;
+    font-size: 0.9rem;
+    padding: 0.45rem 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .result-btn:hover:not(:disabled) {
+    border-color: rgba(255, 26, 26, 0.4);
+    color: var(--text);
+  }
+
+  .result-btn--active {
+    border-color: var(--green-alive);
+    color: var(--green-alive);
+    background: rgba(46, 204, 113, 0.1);
+  }
+
+  .result-btn--clear {
+    margin-left: auto;
+  }
+
+  .admin-footer {
+    margin-top: 2rem;
+    text-align: center;
+  }
+
+  .admin-link {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  .admin-link:hover {
+    color: var(--gold);
+  }
+</style>

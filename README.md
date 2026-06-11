@@ -38,7 +38,7 @@ pnpm dlx netlify deploy --prod --dir=dist
 
 ## Player registration
 
-Fighters submit picks at `/enter`. Round 1: pick a codename slot, enter your name, and choose a team. Later rounds: pick from surviving players and available teams. Picks close 90 minutes before the first kick-off of each round. No duplicate teams per round; no reusing teams across rounds.
+Fighters submit picks at `/enter`. Round 1: enter your name and choose a team. Later rounds: select a surviving player and an available team. Picks close 90 minutes before the first kick-off of each round. No duplicate teams per round; no reusing teams across rounds.
 
 Entries are stored in **Netlify Blobs** (a small key-value store bundled with Netlify — no separate database to run). The API lives at `/api/entries`.
 

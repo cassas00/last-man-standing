@@ -2,7 +2,6 @@
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import { gameConfig } from '../lib/game-config';
-import { playerSlots } from '../data/game';
 ---
 
 <Layout title="Submit Pick" description="Register or submit your pick for the current round.">
@@ -22,10 +21,10 @@ import { playerSlots } from '../data/game';
         <section class="enter-form-section mk-panel">
           <h2 class="section-title mk-gold-text" id="form-title">Your Pick</h2>
           <form id="enter-form" class="enter-form">
-            <label class="field" id="field-slot">
-              <span class="field__label" id="slot-label">Fighter codename</span>
-              <select name="playerId" id="player-slot" class="field__input" required>
-                <option value="">Select…</option>
+            <label class="field" id="field-player" hidden>
+              <span class="field__label">Player</span>
+              <select name="playerId" id="player-slot" class="field__input">
+                <option value="">Select player…</option>
               </select>
             </label>
 
@@ -69,12 +68,12 @@ import { playerSlots } from '../data/game';
 </Layout>
 
 <script>
-  import { loadPoolState, submitPick, getMySlotId } from '../lib/pool-store';
+  import { applyResults } from '../lib/apply-results';
+  import { loadPoolState, submitPick, getMySlotId, resolvePlayerId } from '../lib/pool-store';
+  import { loadResults } from '../lib/results-store';
   import {
     getAvailableTeamsForPlayer,
-    getAliveRegisteredPlayers,
     getTeamsTakenInRound,
-    isPickWindowOpen,
   } from '../lib/pool-validation';
   import { resolveGameState } from '../utils/engine';
   import { formatScheduleTime, getRoundSchedule } from '../utils/schedule';
@@ -92,8 +91,7 @@ import { playerSlots } from '../data/game';
   const nameInput = document.getElementById('player-name') as HTMLInputElement;
   const teamSelect = document.getElementById('player-team') as HTMLSelectElement;
   const fieldName = document.getElementById('field-name') as HTMLElement;
-  const fieldSlot = document.getElementById('field-slot') as HTMLElement;
-  const slotLabel = document.getElementById('slot-label') as HTMLElement;
+  const fieldPlayer = document.getElementById('field-player') as HTMLElement;
   const teamLabel = document.getElementById('team-label') as HTMLElement;
   const pageKicker = document.getElementById('page-kicker') as HTMLElement;
   const pageSub = document.getElementById('page-sub') as HTMLElement;
@@ -102,7 +100,6 @@ import { playerSlots } from '../data/game';
   const rosterTitle = document.getElementById('roster-title') as HTMLElement;
 
   const teams = config?.teams as Array<{ id: string; short: string; color: string; name: string }>;
-  const slots = config?.slots as Array<{ id: string; alias: string }>;
   const matches = config?.matches;
   const totalRounds = config?.totalRounds as number;
 
@@ -115,8 +112,12 @@ import { playerSlots } from '../data/game';
     statusEl.className = `enter-status mk-panel enter-status--${type}`;
   }
 
-  function populateTeamOptions(state: import('../types/pool').PoolState, playerId: string) {
-    const available = getAvailableTeamsForPlayer(state, playerId, currentRound, matches, teams);
+  function populateTeamOptions(
+    state: import('../types/pool').PoolState,
+    playerId: string,
+    liveMatches = matches,
+  ) {
+    const available = getAvailableTeamsForPlayer(state, playerId, currentRound, liveMatches, teams);
     const currentPick = state.entries[playerId]?.picks.find((p) => p.round === currentRound);
 
     teamSelect.innerHTML = '<option value="">Pick a team…</option>';
@@ -141,45 +142,35 @@ import { playerSlots } from '../data/game';
     }
   }
 
-  function populatePlayerOptions(state: import('../types/pool').PoolState) {
-    const mySlot = getMySlotId();
-    slotSelect.innerHTML = '<option value="">Select…</option>';
-
-    if (currentRound === 1) {
-      for (const slot of slots) {
-        const entry = state.entries[slot.id];
-        const taken = !!entry && mySlot !== slot.id;
-        const opt = document.createElement('option');
-        opt.value = slot.id;
-        opt.textContent = taken ? `${slot.alias} — ${entry!.name}` : slot.alias;
-        opt.disabled = taken;
-        slotSelect.appendChild(opt);
-      }
-    } else {
-      const alive = getAliveRegisteredPlayers(state);
-      for (const player of alive) {
-        const opt = document.createElement('option');
-        opt.value = player.id;
-        opt.textContent = `${player.alias} — ${player.name}`;
-        slotSelect.appendChild(opt);
-      }
+  function populatePlayerOptions(alive: Array<{ id: string; name: string }>) {
+    slotSelect.innerHTML = '<option value="">Select player…</option>';
+    for (const player of alive) {
+      const opt = document.createElement('option');
+      opt.value = player.id;
+      opt.textContent = player.name;
+      slotSelect.appendChild(opt);
     }
   }
 
-  function renderRoster(state: import('../types/pool').PoolState) {
+  function renderRoster(
+    state: import('../types/pool').PoolState,
+    aliveIds: Set<string>,
+  ) {
     const takenThisRound = getTeamsTakenInRound(state, currentRound);
 
-    rosterEl.innerHTML = (slots ?? [])
-      .map((slot) => {
-        const entry = state.entries[slot.id];
-        const pick = entry?.picks.find((p) => p.round === currentRound);
+    const entries = Object.values(state.entries);
+    const rosterEntries = currentRound === 1
+      ? entries
+      : entries.filter((e) => aliveIds.has(e.playerId));
+
+    rosterEl.innerHTML = rosterEntries
+      .map((entry) => {
+        const pick = entry.picks.find((p) => p.round === currentRound);
         const team = pick ? getTeam(pick.teamId) : null;
-        const isMine = getMySlotId() === slot.id;
-        if (currentRound > 1 && !entry) return '';
+        const isMine = getMySlotId() === entry.playerId;
 
         return `<div class="roster-card mk-panel ${pick ? 'roster-card--taken' : ''} ${isMine ? 'roster-card--mine' : ''}">
-          <span class="roster-card__alias">${slot.alias}</span>
-          <span class="roster-card__name">${entry ? entry.name : 'Open slot'}</span>
+          <span class="roster-card__name">${entry.name}</span>
           ${
             team
               ? `<span class="roster-card__team" style="--team-color: ${team.color}">${team.short}</span>`
@@ -196,38 +187,35 @@ import { playerSlots } from '../data/game';
   }
 
   async function refresh() {
-    const { state, source } = await loadPoolState();
-    const players = (slots ?? []).map((slot) => {
-      const entry = state.entries[slot.id];
-      return {
-        id: slot.id,
-        alias: slot.alias,
-        name: entry?.name ?? '—',
-        picks: entry?.picks.map((p) => ({ round: p.round, teamId: p.teamId })) ?? [],
-      };
-    });
+    const [{ state, source }, results] = await Promise.all([loadPoolState(), loadResults()]);
+    const { playersFromPool } = await import('../lib/pool-store');
+    const players = playersFromPool(state);
+    const liveMatches = applyResults(matches, results);
 
-    const resolved = resolveGameState(players, matches, totalRounds, Date.now());
+    const resolved = resolveGameState(players, liveMatches, totalRounds, Date.now());
+    const survivors = resolved.players.filter((p) => !p.eliminated && p.name !== '—');
     currentRound = resolved.currentRound;
-    picksOpen = isPickWindowOpen(currentRound);
-    const schedule = getRoundSchedule(currentRound, matches);
+    picksOpen = resolved.picksOpen;
+    const schedule = getRoundSchedule(currentRound, liveMatches);
 
     pageKicker.textContent = `Round ${currentRound}`;
-    rosterTitle.textContent = currentRound === 1 ? `Fighters (${slots.length} slots)` : 'Survivors';
+    rosterTitle.textContent = currentRound === 1 ? `Players (${Object.keys(state.entries).length})` : 'Survivors';
 
     if (currentRound === 1) {
       pageSub.textContent =
-        'Choose your fighter codename, enter your name, and lock in your Round 1 team. No two players can pick the same team.';
-      fieldName.style.display = '';
+        'Enter your name and lock in your Round 1 team. No two players can pick the same team.';
+      fieldName.hidden = false;
+      fieldPlayer.hidden = true;
       nameInput.required = true;
-      slotLabel.textContent = 'Fighter codename';
+      slotSelect.required = false;
       formTitle.textContent = 'Register';
     } else {
       pageSub.textContent =
-        `Submit your Round ${currentRound} pick. Select a surviving player and a team — no duplicates this round, and no team you've used before.`;
-      fieldName.style.display = 'none';
+        `Submit your Round ${currentRound} pick. Select a player and a team — no duplicates this round, and no team you've used before.`;
+      fieldName.hidden = true;
+      fieldPlayer.hidden = false;
       nameInput.required = false;
-      slotLabel.textContent = 'Player';
+      slotSelect.required = true;
       formTitle.textContent = `Round ${currentRound} Pick`;
     }
 
@@ -243,20 +231,24 @@ import { playerSlots } from '../data/game';
         ? 'Dev mode: saved to this browser only. Use pnpm dev:netlify for shared storage.'
         : 'Picks are saved for everyone. Each team can only be picked once per round.';
 
-    populatePlayerOptions(state);
-    populateTeamOptions(state, slotSelect.value || getMySlotId() || '');
-
     const mySlot = getMySlotId();
-    if (mySlot) {
+    const activePlayerId =
+      currentRound === 1
+        ? resolvePlayerId(state, 1, mySlot) ?? ''
+        : slotSelect.value || mySlot || '';
+
+    if (currentRound > 1) populatePlayerOptions(survivors);
+
+    if (currentRound === 1 && mySlot && state.entries[mySlot]) {
+      nameInput.value = state.entries[mySlot].name;
+    }
+    if (currentRound > 1 && mySlot && state.entries[mySlot]) {
       slotSelect.value = mySlot;
-      const entry = state.entries[mySlot];
-      if (entry) {
-        if (currentRound === 1) nameInput.value = entry.name;
-        populateTeamOptions(state, mySlot);
-      }
     }
 
-    renderRoster(state);
+    populateTeamOptions(state, activePlayerId, liveMatches);
+
+    renderRoster(state, new Set(survivors.map((p) => p.id)));
 
     const formDisabled = !picksOpen;
     form.querySelectorAll('input, select, button').forEach((el) => {
@@ -265,7 +257,7 @@ import { playerSlots } from '../data/game';
 
     if (!picksOpen) {
       setStatus(resolved.phaseLabel, 'info');
-    } else if (currentRound > 1 && getAliveRegisteredPlayers(state).length === 0) {
+    } else if (currentRound > 1 && survivors.length === 0) {
       setStatus('No surviving registered players yet.', 'info');
       submitBtn.disabled = true;
     } else {
@@ -273,34 +265,35 @@ import { playerSlots } from '../data/game';
       submitBtn.disabled = false;
     }
 
-    if (currentRound > 1) {
-      const existingPick = slotSelect.value
-        ? state.entries[slotSelect.value]?.picks.find((p) => p.round === currentRound)
-        : null;
-      submitBtn.textContent = existingPick ? 'Update Pick' : 'Lock In Pick';
-    } else {
-      submitBtn.textContent = state.entries[slotSelect.value]?.picks.some((p) => p.round === 1)
-        ? 'Update Pick'
-        : 'Lock In Pick';
-    }
+    const checkId = currentRound === 1 ? mySlot : slotSelect.value;
+    const existingPick = checkId
+      ? state.entries[checkId]?.picks.find((p) => p.round === currentRound)
+      : null;
+    submitBtn.textContent = existingPick ? 'Update Pick' : 'Lock In Pick';
   }
 
   slotSelect.addEventListener('change', async () => {
-    const { state } = await loadPoolState();
-    populateTeamOptions(state, slotSelect.value);
-    if (currentRound === 1) {
-      const entry = state.entries[slotSelect.value];
-      if (entry) nameInput.value = entry.name;
-    }
+    const [{ state }, results] = await Promise.all([loadPoolState(), loadResults()]);
+    populateTeamOptions(state, slotSelect.value, applyResults(matches, results));
   });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!picksOpen) return;
 
-    const playerId = slotSelect.value;
+    const { state } = await loadPoolState();
+    const mySlot = getMySlotId();
+    const playerId =
+      currentRound === 1
+        ? resolvePlayerId(state, 1, mySlot)
+        : slotSelect.value;
     const teamId = teamSelect.value;
-    if (!playerId || !teamId) return;
+
+    if (!playerId) {
+      setStatus('Select a player.', 'error');
+      return;
+    }
+    if (!teamId) return;
 
     submitBtn.disabled = true;
     const result = await submitPick({
@@ -474,9 +467,9 @@ import { playerSlots } from '../data/game';
   }
 
   .roster-card {
-    display: grid;
-    grid-template-columns: 1fr 1fr auto;
+    display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 0.75rem;
     padding: 0.75rem 1rem;
     opacity: 0.7;
@@ -491,15 +484,11 @@ import { playerSlots } from '../data/game';
     box-shadow: 0 0 12px rgba(255, 215, 0, 0.15);
   }
 
-  .roster-card__alias {
-    font-family: 'Bebas Neue', sans-serif;
-    color: var(--gold);
-    letter-spacing: 0.1em;
+  .roster-card__name {
+    font-size: 1rem;
+    font-weight: 600;
   }
 
-  .roster-card__name {
-    font-size: 0.9rem;
-  }
 
   .roster-card__team {
     font-family: 'Bebas Neue', sans-serif;

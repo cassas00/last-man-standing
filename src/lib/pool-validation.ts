@@ -1,20 +1,16 @@
 import type { Player, RoundMatch, Team } from "../data/game";
-import { matches, teams, playerSlots } from "../data/game";
+import { matches, teams } from "../data/game";
 import { rounds } from "../data/rounds";
 import type { PoolState, SubmitPickRequest } from "../types/pool";
 import { resolveGameState, getTeamsPlayingInRound, getRoundPhase } from "../utils/engine";
 import { getRoundSchedule } from "../utils/schedule";
 
 function poolToPlayers(state: PoolState): Player[] {
-  return playerSlots.map((slot) => {
-    const entry = state.entries[slot.id];
-    return {
-      id: slot.id,
-      alias: slot.alias,
-      name: entry?.name ?? "—",
-      picks: entry?.picks.map((p) => ({ round: p.round, teamId: p.teamId })) ?? [],
-    };
-  });
+  return Object.values(state.entries).map((entry) => ({
+    id: entry.playerId,
+    name: entry.name,
+    picks: entry.picks.map((p) => ({ round: p.round, teamId: p.teamId })),
+  }));
 }
 
 export function getTeamsTakenInRound(
@@ -81,7 +77,7 @@ export function validatePick(
     return "Invalid round.";
   }
 
-  if (!playerSlots.some((s) => s.id === body.playerId)) {
+  if (!body.playerId || typeof body.playerId !== "string") {
     return "Invalid player.";
   }
 

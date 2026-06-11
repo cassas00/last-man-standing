@@ -18,7 +18,6 @@ export interface Pick {
 export interface Player {
   id: string;
   name: string;
-  alias: string;
   picks: Pick[];
   eliminated?: boolean;
   eliminatedRound?: number;
@@ -99,27 +98,8 @@ export const teams: Team[] = [
   { id: "pan", name: "Panama", short: "PAN", color: "#DA121A" },
 ];
 
-/** Fighter slots — names and Round 1 picks come from the pool database at runtime. */
-export const playerSlots = [
-  { id: "p1", alias: "Scorpion" },
-  { id: "p2", alias: "Raiden" },
-  { id: "p3", alias: "Sub-Zero" },
-  { id: "p4", alias: "Liu Kang" },
-  { id: "p5", alias: "Sonya" },
-  { id: "p6", alias: "Jax" },
-  { id: "p7", alias: "Kitana" },
-  { id: "p8", alias: "Johnny Cage" },
-  { id: "p9", alias: "Kano" },
-  { id: "p10", alias: "Mileena" },
-] as const;
-
 /** Default empty roster before pool entries load. */
-export const players: Player[] = playerSlots.map((slot) => ({
-  id: slot.id,
-  alias: slot.alias,
-  name: "—",
-  picks: [],
-}));
+export const players: Player[] = [];
 
 export { matches, rounds };
 

@@ -10,7 +10,7 @@ interface Props {
 const { match } = Astro.props;
 const home = match.homeTeamId ? getTeam(match.homeTeamId) : undefined;
 const away = match.awayTeamId ? getTeam(match.awayTeamId) : undefined;
-const hasResult = !!match.winnerId;
+const hasResult = !!match.winnerId || !!match.isDraw;
 const isDraw = !!match.isDraw;
 const homeWon = hasResult && !isDraw && match.winnerId === match.homeTeamId;
 const awayWon = hasResult && !isDraw && match.winnerId === match.awayTeamId;

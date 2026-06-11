@@ -3,8 +3,6 @@ import { getStore } from "@netlify/blobs";
 import type { PoolState, SubmitPickRequest } from "../../src/types/pool";
 import { emptyPoolState, migratePoolState } from "../../src/types/pool";
 import { validatePick } from "../../src/lib/pool-validation";
-import { playerSlots } from "../../src/data/game";
-
 const STORE_NAME = "lms-pool";
 const STATE_KEY = "state";
 
@@ -47,10 +45,6 @@ export default async (req: Request, _context: Context) => {
       body = await req.json();
     } catch {
       return Response.json({ ok: false, error: "Invalid request body." }, { status: 400 });
-    }
-
-    if (!playerSlots.some((s) => s.id === body.playerId)) {
-      return Response.json({ ok: false, error: "Invalid player." }, { status: 400 });
     }
 
     const state = await readState(store);

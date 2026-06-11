@@ -1,5 +1,4 @@
 import type { Player } from "../data/game";
-import { playerSlots } from "../data/game";
 import type { PoolState, SubmitPickRequest, SubmitPickResponse } from "../types/pool";
 import { emptyPoolState, migratePoolState } from "../types/pool";
 import { validatePick, getTeamsTakenInRound, getTeamsUsedByPlayer } from "./pool-validation";
@@ -95,15 +94,22 @@ export async function submitPick(request: SubmitPickRequest): Promise<SubmitPick
 export const submitEntry = submitPick;
 
 export function playersFromPool(state: PoolState): Player[] {
-  return playerSlots.map((slot) => {
-    const entry = state.entries[slot.id];
-    return {
-      id: slot.id,
-      alias: slot.alias,
-      name: entry?.name ?? "—",
-      picks: entry?.picks.map((p) => ({ round: p.round, teamId: p.teamId })) ?? [],
-    };
-  });
+  return Object.values(state.entries).map((entry) => ({
+    id: entry.playerId,
+    name: entry.name,
+    picks: entry.picks.map((p) => ({ round: p.round, teamId: p.teamId })),
+  }));
+}
+
+export function resolvePlayerId(
+  state: PoolState,
+  round: number,
+  mySlotId: string | null,
+  selectedPlayerId?: string,
+): string | null {
+  if (round > 1) return selectedPlayerId || null;
+  if (mySlotId && state.entries[mySlotId]) return mySlotId;
+  return crypto.randomUUID();
 }
 
 export function isSlotTaken(state: PoolState, playerId: string): boolean {

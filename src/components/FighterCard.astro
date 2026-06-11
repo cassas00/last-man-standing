@@ -13,32 +13,35 @@ const currentPick = currentRound
   ? player.picks.find((p) => p.round === currentRound)
   : player.picks[player.picks.length - 1];
 const pickTeam = currentPick ? getTeam(currentPick.teamId) : undefined;
+const registered = player.name !== '—';
 ---
 
-<article class:list={['fighter-card', 'mk-panel', { 'fighter-card--dead': player.eliminated }]}>
+<article class:list={['fighter-card', 'mk-panel', { 'fighter-card--dead': player.eliminated, 'fighter-card--empty': !registered }]}>
   {player.eliminated && <div class="fighter-card__fatality">FATALITY</div>}
   <div class="fighter-card__header">
-    <span class="fighter-card__alias">{player.alias}</span>
-    <span class:list={['fighter-card__status', player.eliminated ? 'status-dead' : 'status-alive']}>
-      {player.eliminated ? 'ELIMINATED' : 'ALIVE'}
+    <h3 class="fighter-card__name">{player.name}</h3>
+    <span class:list={['fighter-card__status', player.eliminated ? 'status-dead' : registered ? 'status-alive' : '']}>
+      {player.eliminated ? 'ELIMINATED' : registered ? 'ALIVE' : 'OPEN'}
     </span>
   </div>
-  <h3 class="fighter-card__name">{player.name}</h3>
   {showPick && pickTeam && (
     <div class="fighter-card__pick">
       <span class="fighter-card__pick-label">Pick</span>
       <span class="fighter-card__team" style={`--team-color: ${pickTeam.color}`}>
         {pickTeam.short}
       </span>
-      {currentPick && !player.eliminated && currentPick.won !== null && (
+      {currentPick && registered && !player.eliminated && currentPick.won !== null && (
         <span class:list={['fighter-card__result', currentPick.won ? 'status-alive' : 'status-dead']}>
           {currentPick.won ? 'WIN' : 'LOSS'}
         </span>
       )}
-      {currentPick && !player.eliminated && currentPick.won === null && (
+      {currentPick && registered && !player.eliminated && currentPick.won === null && (
         <span class="fighter-card__result" style="color: var(--text-muted)">PENDING</span>
       )}
     </div>
+  )}
+  {!registered && showPick && (
+    <p class="fighter-card__round-dead">Not entered yet</p>
   )}
   {player.eliminated && player.eliminatedRound && (
     <p class="fighter-card__round-dead">Fell in Round {player.eliminatedRound}</p>
@@ -46,7 +49,7 @@ const pickTeam = currentPick ? getTeam(currentPick.teamId) : undefined;
   <div class="fighter-card__health">
     <div
       class="fighter-card__health-bar"
-      style={`width: ${player.eliminated ? '0' : '100'}%`}
+      style={`width: ${player.eliminated || !registered ? '0' : '100'}%`}
     ></div>
   </div>
 </article>
@@ -67,6 +70,10 @@ const pickTeam = currentPick ? getTeam(currentPick.teamId) : undefined;
     filter: grayscale(0.6);
   }
 
+  .fighter-card--empty {
+    opacity: 0.65;
+  }
+
   .fighter-card__fatality {
     position: absolute;
     top: 50%;
@@ -85,26 +92,25 @@ const pickTeam = currentPick ? getTeam(currentPick.teamId) : undefined;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.25rem;
-  }
-
-  .fighter-card__alias {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 0.85rem;
-    color: var(--gold);
-    letter-spacing: 0.15em;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
   }
 
   .fighter-card__status {
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.1em;
+    flex-shrink: 0;
+  }
+
+  .fighter-card__status:not(.status-alive):not(.status-dead) {
+    color: var(--text-muted);
   }
 
   .fighter-card__name {
     font-size: 1.3rem;
-    margin-bottom: 0.75rem;
     font-weight: 600;
+    line-height: 1.2;
   }
 
   .fighter-card__pick {

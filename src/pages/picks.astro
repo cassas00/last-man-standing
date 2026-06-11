@@ -61,7 +61,6 @@ function getUsedTeams(playerId: string): string[] {
             {resolved.players.map((player) => (
               <tr class:list={[{ 'row--dead': player.eliminated }]}>
                 <td class="fighter-cell">
-                  <span class="fighter-cell__alias">{player.alias}</span>
                   <span class="fighter-cell__name">{player.name}</span>
                 </td>
                 {Array.from({ length: resolved.totalRounds }, (_, i) => {
@@ -123,7 +122,7 @@ function getUsedTeams(playerId: string): string[] {
                 <span class="team-card__name">{team.name}</span>
                 <span class="team-card__picked">
                   {pickedBy.length > 0
-                    ? `Used by: ${pickedBy.map((p) => p.alias).join(', ')}`
+                    ? `Used by: ${pickedBy.map((p) => p.name).join(', ')}`
                     : resolved.picksOpen
                       ? 'Available to pick'
                       : 'Picks closed'}
@@ -212,14 +211,6 @@ function getUsedTeams(playerId: string): string[] {
 
   .fighter-cell {
     text-align: left !important;
-  }
-
-  .fighter-cell__alias {
-    display: block;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 0.8rem;
-    color: var(--gold);
-    letter-spacing: 0.1em;
   }
 
   .fighter-cell__name {

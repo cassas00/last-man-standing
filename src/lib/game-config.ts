@@ -1,4 +1,4 @@
-import { matches, playerSlots, rounds, teams, game } from "../data/game";
+import { matches, rounds, teams, game } from "../data/game";
 import { getRoundSchedule } from "../utils/schedule";
 
 const round1Schedule = getRoundSchedule(1, matches);
@@ -6,7 +6,6 @@ const round1Schedule = getRoundSchedule(1, matches);
 export const gameConfig = {
   title: game.title,
   subtitle: game.subtitle,
-  slots: playerSlots,
   matches,
   teams,
   totalRounds: rounds.length,

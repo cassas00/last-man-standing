@@ -1,6 +1,7 @@
 import type { GameConfig } from "../lib/game-config";
 import { applyResults } from "../lib/apply-results";
 import { loadPoolState, playersFromPool } from "../lib/pool-store";
+import { applyPrizeToDom, loadPoolSettings } from "../lib/pool-settings-store";
 import { loadResults } from "../lib/results-store";
 import type { ResolvedPlayer, ResolvedGame } from "../utils/engine";
 import { resolveGameState } from "../utils/engine";
@@ -192,11 +193,16 @@ export async function tickGameState() {
   const config = getConfig();
   if (!config) return;
 
-  const [{ state }, results] = await Promise.all([loadPoolState(), loadResults()]);
+  const [{ state }, results, settings] = await Promise.all([
+    loadPoolState(),
+    loadResults(),
+    loadPoolSettings(),
+  ]);
   const matches = applyResults(config.matches, results);
   const players = playersFromPool(state);
   const resolved = resolveGameState(players, matches, config.totalRounds, Date.now());
   applyResolvedState(resolved, config, matches);
+  applyPrizeToDom(settings);
 }
 
 tickGameState();

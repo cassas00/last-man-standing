@@ -1,0 +1,43 @@
+---
+---
+
+<div class="prize-banner mk-panel" data-prize-banner hidden>
+  <p class="prize-banner__kicker">Winner takes</p>
+  <p class="prize-banner__amount" data-prize-amount></p>
+  <p class="prize-banner__sub">Last fighter standing wins the pool</p>
+</div>
+
+<style>
+  .prize-banner {
+    max-width: 520px;
+    margin: 0 auto 1.25rem;
+    padding: 1.25rem 1.5rem;
+    text-align: center;
+    border-color: rgba(240, 210, 100, 0.35);
+    background: linear-gradient(180deg, rgba(240, 210, 100, 0.08) 0%, var(--bg-panel) 100%);
+  }
+
+  .prize-banner__kicker {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem;
+    letter-spacing: 0.25em;
+    color: var(--gold-dim);
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+  }
+
+  .prize-banner__amount {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2.5rem, 8vw, 3.5rem);
+    line-height: 1;
+    color: var(--gold);
+    letter-spacing: 0.06em;
+    text-shadow: 0 0 20px rgba(240, 210, 100, 0.25);
+  }
+
+  .prize-banner__sub {
+    margin-top: 0.5rem;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+  }
+</style>

@@ -2,12 +2,14 @@
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import PrizeBanner from '../components/PrizeBanner.astro';
 import { gameConfig } from '../lib/game-config';
 ---
 
 <Layout title="Submit Pick" description="Register or submit your pick for the current round.">
   <Header />
   <main class="enter-page">
+    <PrizeBanner />
     <div class="container">
       <header class="page-header">
         <p class="page-kicker mk-gold-text" id="page-kicker">Loading…</p>
@@ -185,8 +187,10 @@ import { gameConfig } from '../lib/game-config';
       `${takenCount} team${takenCount !== 1 ? 's' : ''} taken this round. No duplicates allowed.`;
   }
 
-  async function refresh() {
-    const [{ state, source }, results] = await Promise.all([loadPoolState(), loadResults()]);
+  async function refresh(savedState?: import('../types/pool').PoolState) {
+    const [{ state, source }, results] = savedState
+      ? [{ state: savedState, source: 'api' as const }, await loadResults()]
+      : await Promise.all([loadPoolState(), loadResults()]);
     const { playersFromPool } = await import('../lib/pool-store');
     const players = playersFromPool(state);
     const liveMatches = applyResults(matches, results);
@@ -238,8 +242,9 @@ import { gameConfig } from '../lib/game-config';
 
     if (currentRound > 1) populatePlayerOptions(survivors);
 
-    if (currentRound === 1 && mySlot && state.entries[mySlot]) {
-      nameInput.value = state.entries[mySlot].name;
+    const playerId = resolvePlayerId(state, 1, mySlot);
+    if (currentRound === 1 && playerId && state.entries[playerId]) {
+      nameInput.value = state.entries[playerId].name;
     }
     if (currentRound > 1 && mySlot && state.entries[mySlot]) {
       slotSelect.value = mySlot;
@@ -264,7 +269,10 @@ import { gameConfig } from '../lib/game-config';
       submitBtn.disabled = false;
     }
 
-    const checkId = currentRound === 1 ? mySlot : slotSelect.value;
+    const checkId =
+      currentRound === 1
+        ? resolvePlayerId(state, 1, mySlot)
+        : slotSelect.value || mySlot;
     const existingPick = checkId
       ? state.entries[checkId]?.picks.find((p) => p.round === currentRound)
       : null;
@@ -285,26 +293,25 @@ import { gameConfig } from '../lib/game-config';
     const playerId =
       currentRound === 1
         ? resolvePlayerId(state, 1, mySlot)
-        : slotSelect.value;
-    const teamId = teamSelect.value;
+        : slotSelect.value || mySlot;
 
     if (!playerId) {
       setStatus('Select a player.', 'error');
       return;
     }
-    if (!teamId) return;
+    if (!teamSelect.value) return;
 
     submitBtn.disabled = true;
     const result = await submitPick({
       playerId,
       round: currentRound,
-      teamId,
+      teamId: teamSelect.value,
       name: currentRound === 1 ? nameInput.value.trim() : undefined,
     });
 
     if (result.ok) {
       setStatus('Pick saved!', 'ok');
-      await refresh();
+      await refresh(result.state);
     } else {
       setStatus(result.error ?? 'Could not save pick.', 'error');
       submitBtn.disabled = !picksOpen;

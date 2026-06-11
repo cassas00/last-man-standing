@@ -34,7 +34,7 @@ export function clearAdminSession() {
 
 export async function loadResults(): Promise<ResultsState> {
   try {
-    const res = await fetch(RESULTS_API);
+    const res = await fetch(RESULTS_API, { cache: "no-store" });
     if (res.ok) return (await res.json()) as ResultsState;
   } catch {
     // local dev without Netlify
@@ -76,6 +76,7 @@ export interface SaveMatchResultRequest {
 
 const POOL_DEV_KEY = "lms-pool-dev";
 const MY_SLOT_KEY = "lms-my-slot";
+const SETTINGS_DEV_KEY = "lms-pool-settings-dev";
 
 export async function resetAllData(): Promise<{ ok: boolean; error?: string }> {
   const token = getAdminToken();
@@ -90,6 +91,8 @@ export async function resetAllData(): Promise<{ ok: boolean; error?: string }> {
       localStorage.removeItem(DEV_STORAGE_KEY);
       localStorage.removeItem(POOL_DEV_KEY);
       localStorage.removeItem(MY_SLOT_KEY);
+      localStorage.removeItem(SETTINGS_DEV_KEY);
+      sessionStorage.removeItem("lms-pending-player");
     }
     return body;
   } catch {
@@ -99,6 +102,8 @@ export async function resetAllData(): Promise<{ ok: boolean; error?: string }> {
     localStorage.removeItem(DEV_STORAGE_KEY);
     localStorage.removeItem(POOL_DEV_KEY);
     localStorage.removeItem(MY_SLOT_KEY);
+    localStorage.removeItem(SETTINGS_DEV_KEY);
+    sessionStorage.removeItem("lms-pending-player");
     return { ok: true };
   }
 }

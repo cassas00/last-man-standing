@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import PrizeBanner from '../components/PrizeBanner.astro';
 import FighterCard from '../components/FighterCard.astro';
 import RoundTimeline from '../components/RoundTimeline.astro';
 import {
@@ -21,6 +22,7 @@ const eliminated = getEliminatedPlayers(resolved).sort(
 <Layout title="Standings" description="Who's still alive and who got fatality'd.">
   <Header />
   <main class="standings-page">
+    <PrizeBanner />
     <div class="container">
       <header class="page-header">
         <h1 class="page-title mk-glow-text">Standings</h1>

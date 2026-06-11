@@ -6,6 +6,9 @@ import { validatePick, getTeamsTakenInRound, getTeamsUsedByPlayer } from "./pool
 const API_PATH = "/api/entries";
 const DEV_STORAGE_KEY = "lms-pool-dev";
 const MY_SLOT_KEY = "lms-my-slot";
+const PENDING_PLAYER_KEY = "lms-pending-player";
+
+const fetchOpts: RequestInit = { cache: "no-store" };
 
 export function getMySlotId(): string | null {
   return localStorage.getItem(MY_SLOT_KEY);
@@ -13,6 +16,12 @@ export function getMySlotId(): string | null {
 
 export function setMySlotId(playerId: string) {
   localStorage.setItem(MY_SLOT_KEY, playerId);
+  sessionStorage.removeItem(PENDING_PLAYER_KEY);
+}
+
+export function clearMySlotId() {
+  localStorage.removeItem(MY_SLOT_KEY);
+  sessionStorage.removeItem(PENDING_PLAYER_KEY);
 }
 
 async function readDevState(): Promise<PoolState> {
@@ -31,7 +40,7 @@ function writeDevState(state: PoolState) {
 
 async function fetchFromApi(): Promise<PoolState | null> {
   try {
-    const res = await fetch(API_PATH);
+    const res = await fetch(API_PATH, fetchOpts);
     if (!res.ok) return null;
     return migratePoolState(await res.json());
   } catch {
@@ -68,6 +77,7 @@ function applyPickToState(state: PoolState, request: SubmitPickRequest): PoolSta
 export async function submitPick(request: SubmitPickRequest): Promise<SubmitPickResponse> {
   try {
     const res = await fetch(API_PATH, {
+      ...fetchOpts,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
@@ -76,6 +86,7 @@ export async function submitPick(request: SubmitPickRequest): Promise<SubmitPick
     if (body.ok && body.state) {
       setMySlotId(request.playerId);
       writeDevState(migratePoolState(body.state));
+      return body;
     }
     return body;
   } catch {
@@ -108,8 +119,14 @@ export function resolvePlayerId(
   selectedPlayerId?: string,
 ): string | null {
   if (round > 1) return selectedPlayerId || null;
-  if (mySlotId && state.entries[mySlotId]) return mySlotId;
-  return crypto.randomUUID();
+  if (mySlotId) return mySlotId;
+
+  let pending = sessionStorage.getItem(PENDING_PLAYER_KEY);
+  if (!pending) {
+    pending = crypto.randomUUID();
+    sessionStorage.setItem(PENDING_PLAYER_KEY, pending);
+  }
+  return pending;
 }
 
 export function isSlotTaken(state: PoolState, playerId: string): boolean {

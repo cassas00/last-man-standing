@@ -49,6 +49,24 @@ import { rounds } from '../data/rounds';
           </div>
         </div>
 
+        <section class="admin-panel mk-panel prize-admin">
+          <h2 class="section-title mk-gold-text">Prize pool</h2>
+          <form id="prize-form" class="prize-form">
+            <label class="field">
+              <span class="field__label">Winner takes</span>
+              <input
+                type="text"
+                id="prize-amount"
+                class="field__input"
+                placeholder="e.g. £500"
+                maxlength="40"
+              />
+            </label>
+            <button type="submit" class="admin-btn">Save prize</button>
+          </form>
+          <p class="prize-admin__hint">Shown on the Arena and other pages. Leave blank to hide.</p>
+        </section>
+
         <p id="admin-status" class="admin-status" hidden></p>
         <div id="match-admin-list" class="match-admin-list"></div>
       </section>
@@ -65,6 +83,7 @@ import { rounds } from '../data/rounds';
   import { applyResults } from '../lib/apply-results';
   import type { ResultsState } from '../types/results';
   import type { RoundMatch } from '../data/game';
+  import { loadPoolSettings, savePrizeAmount } from '../lib/pool-settings-store';
   import {
     adminLogin,
     clearAdminSession,
@@ -84,6 +103,8 @@ import { rounds } from '../data/rounds';
   const adminStatus = document.getElementById('admin-status') as HTMLElement;
   const logoutBtn = document.getElementById('logout-btn') as HTMLButtonElement;
   const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
+  const prizeForm = document.getElementById('prize-form') as HTMLFormElement;
+  const prizeInput = document.getElementById('prize-amount') as HTMLInputElement;
 
   const baseMatches = gameConfig.matches;
   let resultsState: ResultsState = { version: 1, results: {} };
@@ -168,7 +189,9 @@ import { rounds } from '../data/rounds';
   }
 
   async function refreshResults() {
-    resultsState = await loadResults();
+    const [results, settings] = await Promise.all([loadResults(), loadPoolSettings()]);
+    resultsState = results;
+    prizeInput.value = settings.prizeAmount ?? '';
     renderMatches();
   }
 
@@ -234,6 +257,16 @@ import { rounds } from '../data/rounds';
     await refreshResults();
   });
 
+  prizeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const result = await savePrizeAmount(prizeInput.value);
+    if (result.ok) {
+      setStatus('Prize amount saved.', 'ok');
+    } else {
+      setStatus(result.error ?? 'Could not save prize.', 'error');
+    }
+  });
+
   resetBtn.addEventListener('click', async () => {
     if (!confirm('Clear all player entries and match results? This cannot be undone.')) return;
     resetBtn.disabled = true;
@@ -241,6 +274,7 @@ import { rounds } from '../data/rounds';
     resetBtn.disabled = false;
     if (result.ok) {
       resultsState = { version: 1, results: {} };
+      prizeInput.value = '';
       setStatus('All pool data cleared.', 'ok');
       renderMatches();
     } else {
@@ -377,6 +411,28 @@ import { rounds } from '../data/rounds';
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
+  }
+
+  .prize-admin {
+    margin-bottom: 1.5rem;
+  }
+
+  .prize-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1rem;
+  }
+
+  .prize-form .field {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .prize-admin__hint {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
   }
 
   .admin-btn--danger {

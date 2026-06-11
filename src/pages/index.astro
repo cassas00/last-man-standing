@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import PrizeBanner from '../components/PrizeBanner.astro';
 import RoundBanner from '../components/RoundBanner.astro';
 import FighterCard from '../components/FighterCard.astro';
 import MatchCard from '../components/MatchCard.astro';
@@ -26,6 +27,8 @@ const nextOpensLabel = resolved.schedule
 <Layout title="Arena">
   <Header />
   <main>
+    <PrizeBanner />
+
     {picksEntryOpen && (
       <div class="enter-cta mk-panel">
         <p class="enter-cta__text">
@@ -48,7 +51,7 @@ const nextOpensLabel = resolved.schedule
       {resolved.winner && (
         <div class="final-warning mk-panel winner-banner">
           <p class="final-warning__text">🏆 {resolved.winner.name} WINS 🏆</p>
-          <p class="final-warning__sub">Last fighter standing.</p>
+          <p class="final-warning__sub" data-winner-prize-sub>Last fighter standing.</p>
         </div>
       )}
     </div>
@@ -117,6 +120,10 @@ const nextOpensLabel = resolved.schedule
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 1.5rem 3rem;
+  }
+
+  main > :global(.prize-banner) {
+    margin-top: 1rem;
   }
 
   .enter-cta {

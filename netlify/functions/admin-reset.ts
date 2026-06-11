@@ -1,12 +1,14 @@
 import type { Config, Context } from "@netlify/functions";
 import { getStore } from "@netlify/blobs";
 import { emptyPoolState } from "../../src/types/pool";
+import { emptyPoolSettings } from "../../src/types/pool-settings";
 import { emptyResultsState } from "../../src/types/results";
 import { getAuthHeader, verifyAdminToken } from "../lib/admin-auth";
 
 const STORE_NAME = "lms-pool";
 const STATE_KEY = "state";
 const RESULTS_KEY = "results";
+const SETTINGS_KEY = "settings";
 
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
@@ -20,6 +22,7 @@ export default async (req: Request, _context: Context) => {
   const store = getStore(STORE_NAME);
   await store.setJSON(STATE_KEY, emptyPoolState());
   await store.setJSON(RESULTS_KEY, emptyResultsState());
+  await store.setJSON(SETTINGS_KEY, emptyPoolSettings());
 
   return Response.json({ ok: true });
 };

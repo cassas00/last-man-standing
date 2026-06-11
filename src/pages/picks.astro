@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import PrizeBanner from '../components/PrizeBanner.astro';
 import RoundCutoff from '../components/RoundCutoff.astro';
 import {
   game,
@@ -28,6 +29,7 @@ function getUsedTeams(playerId: string): string[] {
 <Layout title="Picks" description="Every fighter's team picks across all rounds.">
   <Header />
   <main class="picks-page">
+    <PrizeBanner />
     <div class="container">
       <header class="page-header">
         <h1 class="page-title mk-glow-text">Team Picks</h1>

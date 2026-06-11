@@ -4,7 +4,12 @@ import { loadPoolState, playersFromPool } from "../lib/pool-store";
 import { applyPrizeToDom, loadPoolSettings } from "../lib/pool-settings-store";
 import { loadResults } from "../lib/results-store";
 import type { ResolvedPlayer, ResolvedGame } from "../utils/engine";
-import { getTeamsPlayingInRound, resolveGameState } from "../utils/engine";
+import {
+  getRoundPhase,
+  getTeamsPlayingInRound,
+  phaseLabel,
+  resolveGameState,
+} from "../utils/engine";
 import { areRoundPicksRevealed, formatScheduleTime } from "../utils/schedule";
 import type { RoundMatch, Team } from "../data/game";
 import { getTeam } from "../data/game";
@@ -303,8 +308,23 @@ function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches:
 
   document.querySelectorAll(".timeline__round").forEach((el) => {
     const round = Number((el as HTMLElement).dataset.round);
-    el.classList.toggle("timeline__round--current", round === resolved.currentRound);
-    el.classList.toggle("timeline__round--past", round < resolved.currentRound);
+    const isCurrent = round === resolved.currentRound;
+    const isPast = round < resolved.currentRound;
+
+    el.classList.toggle("timeline__round--current", isCurrent);
+    el.classList.toggle("timeline__round--past", isPast);
+
+    const liveEl = el.querySelector("[data-lms-timeline-live]");
+    if (liveEl) {
+      (liveEl as HTMLElement).hidden = !isCurrent;
+    }
+
+    const phaseEl = el.querySelector("[data-lms-timeline-phase]");
+    if (phaseEl) {
+      phaseEl.textContent = phaseLabel(
+        getRoundPhase(round, matches, config.totalRounds, Date.now()),
+      );
+    }
   });
 
   const matchList = document.querySelector(".match-list");

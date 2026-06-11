@@ -1,6 +1,7 @@
 import type { Player } from "../data/game";
 import type { PoolState, SubmitPickRequest, SubmitPickResponse } from "../types/pool";
 import { emptyPoolState, migratePoolState } from "../types/pool";
+import { applyPickToState as applyPickMutation } from "./pool-mutations";
 import { validatePick, getTeamsTakenInRound, getTeamsUsedByPlayer } from "./pool-validation";
 
 const API_PATH = "/api/entries";
@@ -55,22 +56,7 @@ export async function loadPoolState(): Promise<{ state: PoolState; source: "api"
 }
 
 function applyPickToState(state: PoolState, request: SubmitPickRequest): PoolState {
-  const existing = state.entries[request.playerId];
-  const now = new Date().toISOString();
-  const otherPicks = (existing?.picks ?? []).filter((p) => p.round !== request.round);
-  const name =
-    request.round === 1
-      ? request.name!.trim()
-      : (existing?.name ?? request.name?.trim() ?? "");
-
-  state.entries[request.playerId] = {
-    playerId: request.playerId,
-    name,
-    picks: [...otherPicks, { round: request.round, teamId: request.teamId }],
-    enteredAt: existing?.enteredAt ?? now,
-    updatedAt: now,
-  };
-
+  applyPickMutation(state, request);
   return state;
 }
 

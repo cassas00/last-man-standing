@@ -33,7 +33,7 @@ const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
         <div class="timeline__content">
           <h4 class="timeline__title">
             {info?.name ?? `Round ${round}`}
-            {isCurrent && <span class="timeline__live">LIVE</span>}
+            <span class="timeline__live" data-lms-timeline-live hidden>LIVE</span>
           </h4>
           <p class="timeline__matches">
             {roundMatches.length} matches
@@ -47,7 +47,7 @@ const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
               <p class="timeline__opens">
                 Opens {formatScheduleTime(schedule.opensAt)}
               </p>
-              <p class="timeline__phase">
+              <p class="timeline__phase" data-lms-timeline-phase>
                 {phaseLabel(getRoundPhase(round, matches, totalRounds, now))}
               </p>
             </>

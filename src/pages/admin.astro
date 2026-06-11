@@ -49,6 +49,29 @@ import { rounds } from '../data/rounds';
           </div>
         </div>
 
+        <section class="admin-panel mk-panel players-admin">
+          <h2 class="section-title mk-gold-text">Players &amp; picks</h2>
+          <p class="players-admin__hint">
+            Override closed deadlines — add late entrants or assign picks for the selected LMS round.
+          </p>
+
+          <form id="add-player-form" class="add-player-form">
+            <label class="field">
+              <span class="field__label">New player name</span>
+              <input type="text" id="new-player-name" class="field__input" placeholder="e.g. Steven" minlength="2" maxlength="40" />
+            </label>
+            <label class="field">
+              <span class="field__label">Round <span id="add-player-round-label">1</span> team (optional)</span>
+              <select id="new-player-team" class="field__input">
+                <option value="">Add without a pick</option>
+              </select>
+            </label>
+            <button type="submit" class="admin-btn" id="add-player-btn">Add player</button>
+          </form>
+
+          <div id="player-admin-list" class="player-admin-list"></div>
+        </section>
+
         <section class="admin-panel mk-panel prize-admin">
           <h2 class="section-title mk-gold-text">Prize pool</h2>
           <form id="prize-form" class="prize-form">
@@ -84,6 +107,10 @@ import { rounds } from '../data/rounds';
   import type { ResultsState } from '../types/results';
   import type { RoundMatch } from '../data/game';
   import { loadPoolSettings, savePrizeAmount } from '../lib/pool-settings-store';
+  import { adminAddPlayer, adminSetPick } from '../lib/admin-pool-store';
+  import { loadPoolState } from '../lib/pool-store';
+  import { getTeamsPlayingInRound } from '../utils/engine';
+  import type { PoolState } from '../types/pool';
   import {
     adminLogin,
     clearAdminSession,
@@ -105,10 +132,18 @@ import { rounds } from '../data/rounds';
   const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
   const prizeForm = document.getElementById('prize-form') as HTMLFormElement;
   const prizeInput = document.getElementById('prize-amount') as HTMLInputElement;
+  const addPlayerForm = document.getElementById('add-player-form') as HTMLFormElement;
+  const newPlayerName = document.getElementById('new-player-name') as HTMLInputElement;
+  const newPlayerTeam = document.getElementById('new-player-team') as HTMLSelectElement;
+  const addPlayerRoundLabel = document.getElementById('add-player-round-label') as HTMLElement;
+  const playerAdminList = document.getElementById('player-admin-list') as HTMLElement;
 
   const baseMatches = gameConfig.matches;
+  const allTeams = gameConfig.teams;
   let resultsState: ResultsState = { version: 1, results: {} };
+  let poolState: PoolState = { version: 2, entries: {} };
   let savingMatch: number | null = null;
+  let savingPlayer: string | null = null;
 
   function setStatus(message: string, type: 'ok' | 'error' | 'info' = 'info') {
     adminStatus.hidden = false;
@@ -188,11 +223,79 @@ import { rounds } from '../data/rounds';
       .join('');
   }
 
+  function teamsForRound(round: number) {
+    return getTeamsPlayingInRound(round, baseMatches, allTeams);
+  }
+
+  function populateTeamSelect(select: HTMLSelectElement, round: number, selectedId = '') {
+    const teams = teamsForRound(round);
+    const keepFirst = select.options[0]?.value === '';
+    select.innerHTML = keepFirst
+      ? '<option value="">Add without a pick</option>'
+      : '<option value="">No pick</option>';
+    for (const team of teams) {
+      const opt = document.createElement('option');
+      opt.value = team.id;
+      opt.textContent = team.name;
+      select.appendChild(opt);
+    }
+    if (selectedId) select.value = selectedId;
+  }
+
+  function renderPlayers() {
+    const round = Number(roundFilter.value);
+    addPlayerRoundLabel.textContent = String(round);
+    populateTeamSelect(newPlayerTeam, round);
+
+    const entries = Object.values(poolState.entries).sort((a, b) =>
+      a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }),
+    );
+
+    if (entries.length === 0) {
+      playerAdminList.innerHTML = '<p class="players-admin__empty">No players registered yet.</p>';
+      return;
+    }
+
+    playerAdminList.innerHTML = entries
+      .map((entry) => {
+        const pick = entry.picks.find((p) => p.round === round);
+        const team = pick ? allTeams.find((t) => t.id === pick.teamId) : null;
+        const busy = savingPlayer === entry.playerId;
+        const teamOptions = teamsForRound(round)
+          .map((t) => {
+            const selected = pick?.teamId === t.id ? 'selected' : '';
+            return `<option value="${t.id}" ${selected}>${t.name}</option>`;
+          })
+          .join('');
+
+        return `<article class="player-admin mk-panel">
+          <div class="player-admin__head">
+            <span class="player-admin__name">${entry.name}</span>
+            <span class="player-admin__pick">${team ? team.short : '—'}</span>
+          </div>
+          <div class="player-admin__actions">
+            <select class="field__input player-admin__team" data-player-id="${entry.playerId}" ${busy ? 'disabled' : ''}>
+              <option value="">No pick</option>
+              ${teamOptions}
+            </select>
+            <button type="button" class="admin-btn player-admin__save" data-save-player="${entry.playerId}" ${busy ? 'disabled' : ''}>Save pick</button>
+          </div>
+        </article>`;
+      })
+      .join('');
+  }
+
   async function refreshResults() {
-    const [results, settings] = await Promise.all([loadResults(), loadPoolSettings()]);
+    const [{ state }, results, settings] = await Promise.all([
+      loadPoolState(),
+      loadResults(),
+      loadPoolSettings(),
+    ]);
+    poolState = state;
     resultsState = results;
     prizeInput.value = settings.prizeAmount ?? '';
     renderMatches();
+    renderPlayers();
   }
 
   async function handleResultAction(matchNumber: number, action: string) {
@@ -237,7 +340,68 @@ import { rounds } from '../data/rounds';
     if (matchNumber && action) void handleResultAction(matchNumber, action);
   });
 
-  roundFilter.addEventListener('change', renderMatches);
+  roundFilter.addEventListener('change', () => {
+    renderMatches();
+    renderPlayers();
+  });
+
+  addPlayerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const round = Number(roundFilter.value);
+    const name = newPlayerName.value.trim();
+    const teamId = newPlayerTeam.value || undefined;
+
+    addPlayerForm.querySelector('button')!.setAttribute('disabled', 'true');
+    const result = await adminAddPlayer({
+      name,
+      ...(teamId ? { round, teamId } : {}),
+    });
+    addPlayerForm.querySelector('button')!.removeAttribute('disabled');
+
+    if (result.ok && result.state) {
+      poolState = result.state;
+      newPlayerName.value = '';
+      newPlayerTeam.value = '';
+      setStatus(teamId ? `${name} added with Round ${round} pick.` : `${name} added.`, 'ok');
+      renderPlayers();
+    } else {
+      setStatus(result.error ?? 'Could not add player.', 'error');
+    }
+  });
+
+  playerAdminList.addEventListener('click', async (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-save-player]') as HTMLElement | null;
+    if (!btn) return;
+
+    const playerId = btn.dataset.savePlayer!;
+    const row = btn.closest('.player-admin');
+    const select = row?.querySelector('.player-admin__team') as HTMLSelectElement | null;
+    if (!select?.value) {
+      setStatus('Select a team first.', 'error');
+      return;
+    }
+
+    const round = Number(roundFilter.value);
+    savingPlayer = playerId;
+    renderPlayers();
+
+    const result = await adminSetPick({
+      playerId,
+      round,
+      teamId: select.value,
+    });
+
+    savingPlayer = null;
+
+    if (result.ok && result.state) {
+      poolState = result.state;
+      setStatus('Pick saved.', 'ok');
+    } else {
+      setStatus(result.error ?? 'Could not save pick.', 'error');
+    }
+
+    renderPlayers();
+  });
 
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -274,9 +438,11 @@ import { rounds } from '../data/rounds';
     resetBtn.disabled = false;
     if (result.ok) {
       resultsState = { version: 1, results: {} };
+      poolState = { version: 2, entries: {} };
       prizeInput.value = '';
       setStatus('All pool data cleared.', 'ok');
       renderMatches();
+      renderPlayers();
     } else {
       setStatus(result.error ?? 'Could not clear data.', 'error');
     }
@@ -411,6 +577,70 @@ import { rounds } from '../data/rounds';
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
+  }
+
+  .players-admin {
+    margin-bottom: 1.5rem;
+  }
+
+  .players-admin__hint,
+  .players-admin__empty {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    line-height: 1.45;
+  }
+
+  .add-player-form {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  @media (min-width: 600px) {
+    .add-player-form {
+      grid-template-columns: 1fr 1fr auto;
+      align-items: end;
+    }
+  }
+
+  .player-admin-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .player-admin {
+    padding: 1rem 1.25rem;
+  }
+
+  .player-admin__head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .player-admin__name {
+    font-weight: 600;
+    font-size: 1.05rem;
+  }
+
+  .player-admin__pick {
+    font-family: 'Bebas Neue', sans-serif;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+  }
+
+  .player-admin__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .player-admin__team {
+    flex: 1;
+    min-width: 180px;
   }
 
   .prize-admin {

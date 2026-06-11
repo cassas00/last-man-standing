@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
 import RoundBanner from '../components/RoundBanner.astro';
 import FighterCard from '../components/FighterCard.astro';
 import MatchCard from '../components/MatchCard.astro';
@@ -108,9 +109,7 @@ const nextOpensLabel = resolved.schedule
     </section>
   </main>
 
-  <footer class="footer">
-    <p>Last Man Standing · {game.subtitle} · {new Date().getFullYear()}</p>
-  </footer>
+  <Footer />
 </Layout>
 
 <style>
@@ -133,8 +132,9 @@ const nextOpensLabel = resolved.schedule
   }
 
   .enter-cta__text {
-    color: var(--text-muted);
-    font-size: 0.95rem;
+    color: var(--text-primary);
+    font-size: 1rem;
+    line-height: 1.5;
   }
 
   .enter-cta__link {
@@ -226,8 +226,9 @@ const nextOpensLabel = resolved.schedule
 
   .rules__list {
     padding-left: 1.25rem;
-    font-size: 0.95rem;
+    font-size: 1rem;
     color: var(--text-muted);
+    line-height: 1.6;
   }
 
   .rules__list li {
@@ -238,15 +239,6 @@ const nextOpensLabel = resolved.schedule
     margin-top: 0.75rem;
     font-size: 0.8rem;
     color: var(--green-alive);
-  }
-
-  .footer {
-    text-align: center;
-    padding: 1.5rem;
-    border-top: 1px solid rgba(255, 26, 26, 0.2);
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    margin-top: auto;
   }
 
   @media (max-width: 900px) {

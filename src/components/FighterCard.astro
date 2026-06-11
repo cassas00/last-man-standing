@@ -66,12 +66,12 @@ const registered = player.name !== '—';
   }
 
   .fighter-card--dead {
-    opacity: 0.55;
-    filter: grayscale(0.6);
+    opacity: 0.7;
+    filter: grayscale(0.45);
   }
 
   .fighter-card--empty {
-    opacity: 0.65;
+    opacity: 0.8;
   }
 
   .fighter-card__fatality {
@@ -97,9 +97,9 @@ const registered = player.name !== '—';
   }
 
   .fighter-card__status {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     flex-shrink: 0;
   }
 
@@ -108,9 +108,10 @@ const registered = player.name !== '—';
   }
 
   .fighter-card__name {
-    font-size: 1.3rem;
-    font-weight: 600;
-    line-height: 1.2;
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--text-primary);
   }
 
   .fighter-card__pick {
@@ -121,10 +122,10 @@ const registered = player.name !== '—';
   }
 
   .fighter-card__pick-label {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
   }
 
   .fighter-card__team {

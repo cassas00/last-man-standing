@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
 import FighterCard from '../components/FighterCard.astro';
 import RoundTimeline from '../components/RoundTimeline.astro';
 import {
@@ -77,9 +78,7 @@ const eliminated = getEliminatedPlayers(resolved).sort(
     </div>
   </main>
 
-  <footer class="footer">
-    <p>Last Man Standing · {game.subtitle} · {new Date().getFullYear()}</p>
-  </footer>
+  <Footer />
 </Layout>
 
 <style>
@@ -162,15 +161,6 @@ const eliminated = getEliminatedPlayers(resolved).sort(
 
   .timeline-section {
     padding: 1.5rem;
-  }
-
-  .footer {
-    text-align: center;
-    padding: 1.5rem;
-    border-top: 1px solid rgba(255, 26, 26, 0.2);
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    margin-top: auto;
   }
 
   @media (max-width: 600px) {

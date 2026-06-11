@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Footer from '../components/Footer.astro';
 import { gameConfig } from '../lib/game-config';
 import { rounds } from '../data/rounds';
 ---
@@ -52,11 +53,9 @@ import { rounds } from '../data/rounds';
         <div id="match-admin-list" class="match-admin-list"></div>
       </section>
 
-      <p class="admin-footer">
-        <a href="/" class="admin-link">← Back to Arena</a>
-      </p>
     </div>
   </main>
+  <Footer showHome />
 </Layout>
 
 <script>
@@ -321,18 +320,26 @@ import { rounds } from '../data/rounds';
   }
 
   .field__label {
-    font-size: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
   }
 
   .field__input {
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 26, 26, 0.3);
-    color: var(--text);
-    padding: 0.65rem 0.85rem;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-primary);
+    padding: 0.7rem 0.85rem;
     font: inherit;
+    font-size: 1rem;
+  }
+
+  .field__input:focus {
+    outline: none;
+    border-color: var(--gold-dim);
+    box-shadow: 0 0 0 2px rgba(240, 210, 100, 0.15);
   }
 
   .admin-btn {
@@ -485,17 +492,4 @@ import { rounds } from '../data/rounds';
     margin-left: auto;
   }
 
-  .admin-footer {
-    margin-top: 2rem;
-    text-align: center;
-  }
-
-  .admin-link {
-    color: var(--text-muted);
-    font-size: 0.9rem;
-  }
-
-  .admin-link:hover {
-    color: var(--gold);
-  }
 </style>

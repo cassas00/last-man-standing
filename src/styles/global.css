@@ -1,17 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&display=swap');
 
 :root {
-  --bg-dark: #0a0a0a;
-  --bg-panel: #111111;
-  --bg-card: #1a1a1a;
+  --bg-dark: #0e0e0e;
+  --bg-panel: #1a1a1a;
+  --bg-card: #222222;
   --red-blood: #8b0000;
-  --red-fire: #ff1a1a;
-  --red-glow: #ff3333;
-  --gold: #ffd700;
-  --gold-dim: #b8860b;
-  --text-primary: #f0f0f0;
-  --text-muted: #888888;
-  --green-alive: #39ff14;
+  --red-fire: #ff4545;
+  --red-glow: #ff5555;
+  --gold: #f0d264;
+  --gold-dim: #c9a84c;
+  --text-primary: #f4f4f4;
+  --text-muted: #b8b8b8;
+  --green-alive: #72e072;
   --border-angle: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
 }
 
@@ -32,8 +32,11 @@ body {
   background: var(--bg-dark);
   color: var(--text-primary);
   min-height: 100vh;
-  line-height: 1.5;
+  font-size: 1.0625rem;
+  line-height: 1.65;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body::before {
@@ -41,8 +44,8 @@ body::before {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(139, 0, 0, 0.25) 0%, transparent 60%),
-    radial-gradient(ellipse at 50% 100%, rgba(139, 0, 0, 0.15) 0%, transparent 50%);
+    radial-gradient(ellipse at 50% 0%, rgba(139, 0, 0, 0.14) 0%, transparent 60%),
+    radial-gradient(ellipse at 50% 100%, rgba(139, 0, 0, 0.08) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
@@ -54,12 +57,13 @@ body::after {
   background: repeating-linear-gradient(
     0deg,
     transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.08) 2px,
-    rgba(0, 0, 0, 0.08) 4px
+    transparent 3px,
+    rgba(0, 0, 0, 0.03) 3px,
+    rgba(0, 0, 0, 0.03) 6px
   );
   pointer-events: none;
   z-index: 9999;
+  opacity: 0.5;
 }
 
 h1, h2, h3, .mk-title {
@@ -75,19 +79,18 @@ a {
 
 .mk-glow-text {
   text-shadow:
-    0 0 10px var(--red-glow),
-    0 0 30px var(--red-blood),
-    0 0 60px rgba(139, 0, 0, 0.5);
+    0 0 12px rgba(255, 85, 85, 0.35),
+    0 0 24px rgba(139, 0, 0, 0.2);
 }
 
 .mk-gold-text {
   color: var(--gold);
-  text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
 }
 
 .mk-panel {
   background: var(--bg-panel);
-  border: 1px solid rgba(255, 26, 26, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
   clip-path: var(--border-angle);
   position: relative;
 }
@@ -130,12 +133,12 @@ a {
 
 .status-alive {
   color: var(--green-alive);
-  text-shadow: 0 0 8px rgba(57, 255, 20, 0.5);
+  font-weight: 600;
 }
 
 .status-dead {
   color: var(--red-fire);
-  text-shadow: 0 0 8px rgba(255, 26, 26, 0.3);
+  font-weight: 600;
 }
 
 @keyframes pulse-glow {

@@ -1,5 +1,5 @@
 import type { RoundMatch } from "../data/game";
-import { PICK_CUTOFF_MS } from "../data/kickoffs";
+import { PICK_CUTOFF_MS, ROUND_1_CUTOFF_HOUR_UK } from "../data/kickoffs";
 
 export const SCHEDULE_TIMEZONE = "Europe/London";
 /** Estimated full-time whistle after kick-off. */
@@ -73,6 +73,37 @@ export function getNextDayMidnightLocal(afterKickoffIso: string): string {
   return `${ny}-${nm}-${nd}T00:00:00${offset}`;
 }
 
+/** Fixed UK local time on the same calendar day as the given kick-off. */
+export function getUkTimeOnKickoffDay(
+  kickoffIso: string,
+  hour: number,
+  minute = 0,
+): string {
+  const ukDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: SCHEDULE_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(kickoffIso));
+
+  const [year, month, day] = ukDate.split("-");
+  const offset = londonOffsetFor(`${year}-${month}-${day}T12:00:00Z`);
+  const mm = String(minute).padStart(2, "0");
+  const hh = String(hour).padStart(2, "0");
+  return `${year}-${month}-${day}T${hh}:${mm}:00${offset}`;
+}
+
+function getRoundCutoffAt(
+  round: number,
+  firstKickoffIso: string,
+  firstKickoffMs: number,
+): string {
+  if (round === 1) {
+    return getUkTimeOnKickoffDay(firstKickoffIso, ROUND_1_CUTOFF_HOUR_UK);
+  }
+  return new Date(firstKickoffMs - PICK_CUTOFF_MS).toISOString();
+}
+
 /** BST in Jun–Jul; GMT otherwise. */
 function londonOffsetFor(utcIso: string): string {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -109,7 +140,7 @@ export function getRoundSchedule(round: number, matches: RoundMatch[]): RoundSch
     round,
     firstKickoffAt: earliest.kickoffAt!,
     lastKickoffAt: latest.kickoffAt!,
-    cutoffAt: new Date(firstKickoffMs - PICK_CUTOFF_MS).toISOString(),
+    cutoffAt: getRoundCutoffAt(round, earliest.kickoffAt!, firstKickoffMs),
     closesAt: new Date(lastKickoffMs + MATCH_DURATION_MS).toISOString(),
     opensAt: getRoundOpensAt(round, matches),
     firstMatchNumber: earliest.matchNumber,

@@ -40,6 +40,7 @@ function getUsedTeams(playerId: string): string[] {
         {resolved.schedule && (
           <div class="page-cutoff">
             <RoundCutoff
+              round={resolved.currentRound}
               cutoffAt={resolved.schedule.cutoffAt}
               firstKickoffAt={resolved.schedule.firstKickoffAt}
               firstMatchNumber={resolved.schedule.firstMatchNumber}

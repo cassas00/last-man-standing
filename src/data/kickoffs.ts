@@ -121,3 +121,5 @@ export function kickoffIso(matchNumber: number): string | undefined {
 }
 
 export const PICK_CUTOFF_MS = 90 * 60 * 1000;
+/** Round 1 picks close at this time UK on the first matchday (not 90 min early). */
+export const ROUND_1_CUTOFF_HOUR_UK = 20;

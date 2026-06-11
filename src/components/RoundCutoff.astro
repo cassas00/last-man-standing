@@ -2,15 +2,20 @@
 import { formatScheduleTime } from '../utils/schedule';
 
 interface Props {
+  round: number;
   cutoffAt: string;
   firstKickoffAt: string;
   firstMatchNumber: number;
   picksOpen: boolean;
 }
 
-const { cutoffAt, firstKickoffAt, firstMatchNumber, picksOpen } = Astro.props;
+const { round, cutoffAt, firstKickoffAt, firstMatchNumber, picksOpen } = Astro.props;
 const cutoffLabel = formatScheduleTime(cutoffAt);
 const kickoffLabel = formatScheduleTime(firstKickoffAt);
+const detailText =
+  round === 1
+    ? `Deadline 20:00 UK · First match #${firstMatchNumber} at ${kickoffLabel}`
+    : `90 min before first kick-off · Match #${firstMatchNumber} at ${kickoffLabel}`;
 ---
 
 <div
@@ -25,9 +30,7 @@ const kickoffLabel = formatScheduleTime(firstKickoffAt);
   >
     {picksOpen ? 'Picks open' : 'Picks closed'}
   </p>
-  <p class="round-cutoff__detail">
-    90 min before first kick-off · Match #{firstMatchNumber} at {kickoffLabel}
-  </p>
+  <p class="round-cutoff__detail">{detailText}</p>
 </div>
 
 <style>

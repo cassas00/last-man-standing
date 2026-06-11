@@ -120,27 +120,38 @@ import { gameConfig } from '../lib/game-config';
     playerId: string,
     liveMatches = matches,
   ) {
-    const available = getAvailableTeamsForPlayer(state, playerId, currentRound, liveMatches, teams);
+    const sortTeams = (list: typeof teams) =>
+      [...list].sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+
+    const baseAvailable = getAvailableTeamsForPlayer(
+      state,
+      playerId,
+      currentRound,
+      liveMatches,
+      teams,
+    );
     const currentPick = state.entries[playerId]?.picks.find((p) => p.round === currentRound);
+    const currentPickUnavailable =
+      !!currentPick && !baseAvailable.some((t) => t.id === currentPick.teamId);
+    let available = sortTeams(baseAvailable);
+
+    if (currentPickUnavailable) {
+      const team = teams.find((t) => t.id === currentPick.teamId);
+      if (team) available = sortTeams([...baseAvailable, team]);
+    }
 
     teamSelect.innerHTML = '<option value="">Pick a team…</option>';
     for (const team of available) {
       const opt = document.createElement('option');
       opt.value = team.id;
-      opt.textContent = `${team.name} (${team.short})`;
+      opt.textContent =
+        currentPickUnavailable && currentPick.teamId === team.id
+          ? `${team.name} — your pick`
+          : team.name;
       teamSelect.appendChild(opt);
     }
 
-    if (currentPick && !available.some((t) => t.id === currentPick.teamId)) {
-      const team = teams.find((t) => t.id === currentPick.teamId);
-      if (team) {
-        const opt = document.createElement('option');
-        opt.value = team.id;
-        opt.textContent = `${team.name} (${team.short}) — your pick`;
-        opt.selected = true;
-        teamSelect.appendChild(opt);
-      }
-    } else if (currentPick) {
+    if (currentPick) {
       teamSelect.value = currentPick.teamId;
     }
   }

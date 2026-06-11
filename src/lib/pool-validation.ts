@@ -69,7 +69,7 @@ export function getAvailableTeamsForPlayer(
 
   return playing
     .filter((team) => !usedByPlayer.has(team.id) || currentRoundPick?.teamId === team.id)
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
 }
 
 export function validatePick(

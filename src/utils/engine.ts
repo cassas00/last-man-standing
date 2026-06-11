@@ -244,5 +244,7 @@ export function getTeamsPlayingInRound(
     if (match.homeTeamId) ids.add(match.homeTeamId);
     if (match.awayTeamId) ids.add(match.awayTeamId);
   }
-  return teams.filter((team) => ids.has(team.id));
+  return teams
+    .filter((team) => ids.has(team.id))
+    .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
 }

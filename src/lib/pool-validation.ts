@@ -45,6 +45,11 @@ export function isPickWindowOpen(round: number, now = Date.now()): boolean {
   return getRoundPhase(round, matches, rounds.length, now) === "picks-open";
 }
 
+/** New players may only join during the Round 1 pick window. */
+export function isRegistrationOpen(now = Date.now()): boolean {
+  return isPickWindowOpen(1, now);
+}
+
 export function getAliveRegisteredPlayers(state: PoolState, now = Date.now()): Player[] {
   const players = poolToPlayers(state);
   const resolved = resolveGameState(players, matches, rounds.length, now);
@@ -62,9 +67,9 @@ export function getAvailableTeamsForPlayer(
   const usedByPlayer = getTeamsUsedByPlayer(state, playerId);
   const currentRoundPick = state.entries[playerId]?.picks.find((p) => p.round === round);
 
-  return playing.filter(
-    (team) => !usedByPlayer.has(team.id) || currentRoundPick?.teamId === team.id,
-  );
+  return playing
+    .filter((team) => !usedByPlayer.has(team.id) || currentRoundPick?.teamId === team.id)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function validatePick(
@@ -105,6 +110,10 @@ export function validatePick(
   const existing = state.entries[body.playerId];
 
   if (round === 1) {
+    if (!existing && !isRegistrationOpen(now)) {
+      return "Registration is closed. The Round 1 deadline has passed.";
+    }
+
     const name = body.name?.trim();
     if (!name || name.length < 2) return "Enter your name (at least 2 characters).";
     if (name.length > 40) return "Name is too long.";

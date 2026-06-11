@@ -75,6 +75,7 @@ import { gameConfig } from '../lib/game-config';
   import {
     getAvailableTeamsForPlayer,
     getTeamsTakenInRound,
+    isRegistrationOpen,
   } from '../lib/pool-validation';
   import { resolveGameState } from '../utils/engine';
   import { areRoundPicksRevealed, formatScheduleTime, getRoundSchedule } from '../utils/schedule';
@@ -99,6 +100,7 @@ import { gameConfig } from '../lib/game-config';
   const pageDeadline = document.getElementById('page-deadline') as HTMLElement;
   const formTitle = document.getElementById('form-title') as HTMLElement;
   const rosterTitle = document.getElementById('roster-title') as HTMLElement;
+  const formSection = document.querySelector('.enter-form-section') as HTMLElement;
 
   const teams = config?.teams as Array<{ id: string; short: string; color: string; name: string }>;
   const matches = config?.matches;
@@ -243,48 +245,63 @@ import { gameConfig } from '../lib/game-config';
         : 'Picks are saved for everyone and stay hidden until the deadline. Use the same device to update yours.';
 
     const mySlot = getMySlotId();
+    const round1PlayerId = resolvePlayerId(state, 1, mySlot);
+    const isRegistered = !!(mySlot && state.entries[mySlot]);
+    const registrationClosed = !isRegistrationOpen() && !isRegistered;
+
     const activePlayerId =
       currentRound === 1
-        ? resolvePlayerId(state, 1, mySlot) ?? ''
+        ? round1PlayerId ?? ''
         : slotSelect.value || mySlot || '';
 
-    if (currentRound > 1) populatePlayerOptions(survivors);
+    if (registrationClosed) {
+      formSection.hidden = true;
+      setStatus(
+        'Registration is closed. The Round 1 deadline has passed — only players who registered in time can continue.',
+        'info',
+      );
+    } else {
+      formSection.hidden = false;
 
-    const playerId = resolvePlayerId(state, 1, mySlot);
-    if (currentRound === 1 && playerId && state.entries[playerId]) {
-      nameInput.value = state.entries[playerId].name;
-    }
-    if (currentRound > 1 && mySlot && state.entries[mySlot]) {
-      slotSelect.value = mySlot;
-    }
+      if (currentRound > 1) populatePlayerOptions(survivors);
 
-    populateTeamOptions(state, activePlayerId, liveMatches);
+      if (currentRound === 1 && round1PlayerId && state.entries[round1PlayerId]) {
+        nameInput.value = state.entries[round1PlayerId].name;
+      }
+      if (currentRound > 1 && mySlot && state.entries[mySlot]) {
+        slotSelect.value = mySlot;
+      }
+
+      populateTeamOptions(state, activePlayerId, liveMatches);
+
+      const formDisabled = !picksOpen;
+      form.querySelectorAll('input, select, button').forEach((el) => {
+        (el as HTMLInputElement).disabled = formDisabled;
+      });
+
+      if (!picksOpen) {
+        setStatus(resolved.phaseLabel, 'info');
+      } else if (currentRound > 1 && survivors.length === 0) {
+        setStatus('No surviving registered players yet.', 'info');
+        submitBtn.disabled = true;
+      } else {
+        setStatus(`Round ${currentRound} picks are open.`, 'ok');
+        submitBtn.disabled = false;
+      }
+    }
 
     renderRoster(state, new Set(survivors.map((p) => p.id)), liveMatches);
 
-    const formDisabled = !picksOpen;
-    form.querySelectorAll('input, select, button').forEach((el) => {
-      (el as HTMLInputElement).disabled = formDisabled;
-    });
-
-    if (!picksOpen) {
-      setStatus(resolved.phaseLabel, 'info');
-    } else if (currentRound > 1 && survivors.length === 0) {
-      setStatus('No surviving registered players yet.', 'info');
-      submitBtn.disabled = true;
-    } else {
-      setStatus(`Round ${currentRound} picks are open.`, 'ok');
-      submitBtn.disabled = false;
+    if (!registrationClosed) {
+      const checkId =
+        currentRound === 1
+          ? round1PlayerId
+          : slotSelect.value || mySlot;
+      const existingPick = checkId
+        ? state.entries[checkId]?.picks.find((p) => p.round === currentRound)
+        : null;
+      submitBtn.textContent = existingPick ? 'Update Pick' : 'Lock In Pick';
     }
-
-    const checkId =
-      currentRound === 1
-        ? resolvePlayerId(state, 1, mySlot)
-        : slotSelect.value || mySlot;
-    const existingPick = checkId
-      ? state.entries[checkId]?.picks.find((p) => p.round === currentRound)
-      : null;
-    submitBtn.textContent = existingPick ? 'Update Pick' : 'Lock In Pick';
   }
 
   slotSelect.addEventListener('change', async () => {

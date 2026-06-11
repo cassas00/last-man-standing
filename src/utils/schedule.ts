@@ -115,11 +115,20 @@ function londonOffsetFor(utcIso: string): string {
   return "+00:00";
 }
 
+/** When the next round's pick window may start (after the previous round finishes). */
 export function getRoundOpensAt(round: number, matches: RoundMatch[]): string {
-  if (round <= 1) return "1970-01-01T00:00:00.000Z";
+  if (round <= 1) {
+    const roundMatches = roundMatchesWithKickoff(1, matches);
+    if (roundMatches.length === 0) return "1970-01-01T00:00:00.000Z";
+    const earliest = roundMatches.reduce((a, b) =>
+      new Date(a.kickoffAt!).getTime() < new Date(b.kickoffAt!).getTime() ? a : b,
+    );
+    return getUkTimeOnKickoffDay(earliest.kickoffAt!, 0, 0);
+  }
+
   const prevLast = getLastKickoff(round - 1, matches);
   if (!prevLast?.kickoffAt) return "1970-01-01T00:00:00.000Z";
-  return getNextDayMidnightLocal(prevLast.kickoffAt);
+  return new Date(new Date(prevLast.kickoffAt).getTime() + MATCH_DURATION_MS).toISOString();
 }
 
 export function getRoundSchedule(round: number, matches: RoundMatch[]): RoundSchedule | undefined {
@@ -135,14 +144,21 @@ export function getRoundSchedule(round: number, matches: RoundMatch[]): RoundSch
 
   const firstKickoffMs = new Date(earliest.kickoffAt!).getTime();
   const lastKickoffMs = new Date(latest.kickoffAt!).getTime();
+  const cutoffAt = getRoundCutoffAt(round, earliest.kickoffAt!, firstKickoffMs);
+  let opensAt = getRoundOpensAt(round, matches);
+
+  // Guard against overlapping matchdays where the previous round ends after this cutoff.
+  if (new Date(opensAt).getTime() >= new Date(cutoffAt).getTime()) {
+    opensAt = new Date(new Date(cutoffAt).getTime() - PICK_CUTOFF_MS).toISOString();
+  }
 
   return {
     round,
     firstKickoffAt: earliest.kickoffAt!,
     lastKickoffAt: latest.kickoffAt!,
-    cutoffAt: getRoundCutoffAt(round, earliest.kickoffAt!, firstKickoffMs),
+    cutoffAt,
     closesAt: new Date(lastKickoffMs + MATCH_DURATION_MS).toISOString(),
-    opensAt: getRoundOpensAt(round, matches),
+    opensAt,
     firstMatchNumber: earliest.matchNumber,
     lastMatchNumber: latest.matchNumber,
   };

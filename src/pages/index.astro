@@ -16,7 +16,6 @@ import { getRoundInfo } from '../data/rounds';
 import { areRoundPicksRevealed, formatScheduleTime } from '../utils/schedule';
 const resolved = getResolvedGame();
 const picksRevealed = areRoundPicksRevealed(resolved.currentRound, game.matches);
-const picksEntryOpen = resolved.picksOpen;
 const roundInfo = getRoundInfo(resolved.currentRound);
 const alive = getAlivePlayers(resolved);
 const roundMatches = getMatchesForRound(resolved.currentRound);
@@ -30,14 +29,12 @@ const nextOpensLabel = resolved.schedule
   <main>
     <PrizeBanner />
 
-    {picksEntryOpen && (
-      <div class="enter-cta mk-panel">
-        <p class="enter-cta__text">
-          Round {resolved.currentRound} picks are open — submit your team before the deadline.
-        </p>
-        <a href="/enter" class="enter-cta__link">Submit Pick →</a>
-      </div>
-    )}
+    <div id="lms-enter-cta" class="enter-cta mk-panel" hidden>
+      <p class="enter-cta__text" data-lms-enter-cta-text>
+        Round {resolved.currentRound} picks are open — submit your team before the deadline.
+      </p>
+      <a href="/enter" class="enter-cta__link">Submit Pick →</a>
+    </div>
 
     <RoundBanner
       round={resolved.currentRound}

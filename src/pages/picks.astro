@@ -4,24 +4,9 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import PrizeBanner from '../components/PrizeBanner.astro';
 import RoundCutoff from '../components/RoundCutoff.astro';
-import {
-  game,
-  getTeam,
-  getResolvedGame,
-  getAlivePlayers,
-  getTeamsPlayingInRound,
-} from '../data/game';
-import { areRoundPicksRevealed } from '../utils/schedule';
+import { getResolvedGame } from '../data/game';
 
 const resolved = getResolvedGame();
-const currentRoundPicksRevealed = areRoundPicksRevealed(resolved.currentRound, game.matches);
-const teamsInRound = getTeamsPlayingInRound(
-  resolved.currentRound,
-  game.matches,
-  game.teams,
-);
-const alive = getAlivePlayers(resolved);
-
 ---
 
 <Layout title="Picks" description="Every fighter's team picks across all rounds.">
@@ -31,7 +16,7 @@ const alive = getAlivePlayers(resolved);
     <div class="container">
       <header class="page-header">
         <h1 class="page-title mk-glow-text">Team Picks</h1>
-        <p class="page-sub">
+        <p class="page-sub" data-lms-picks-sub>
           Picks stay hidden until the deadline, then everyone's choices are revealed.
           {resolved.picksOpen ? ' Submit yours before picks lock.' : ` ${resolved.phaseLabel}.`}
         </p>
@@ -59,84 +44,20 @@ const alive = getAlivePlayers(resolved);
               <th>Status</th>
             </tr>
           </thead>
-          <tbody>
-            {resolved.players.map((player) => (
-              <tr class:list={[{ 'row--dead': player.eliminated }]}>
-                <td class="fighter-cell">
-                  <span class="fighter-cell__name">{player.name}</span>
-                </td>
-                {Array.from({ length: resolved.totalRounds }, (_, i) => {
-                  const round = i + 1;
-                  const pick = player.picks.find((p) => p.round === round);
-                  const revealed = areRoundPicksRevealed(round, game.matches);
-                  const team = pick && revealed ? getTeam(pick.teamId) : undefined;
-                  const evaluated = resolved.evaluatedRound >= round;
-                  return (
-                    <td class="pick-cell">
-                      {pick && !revealed ? (
-                        <span class="pick-badge pick-badge--hidden" title="Hidden until deadline">?</span>
-                      ) : team ? (
-                        <span
-                          class:list={[
-                            'pick-badge',
-                            evaluated && pick?.won ? 'pick-badge--win' : '',
-                            evaluated && pick && !pick.won ? 'pick-badge--loss' : '',
-                            !evaluated ? 'pick-badge--pending' : '',
-                          ]}
-                          style={`--team-color: ${team.color}`}
-                          title={
-                            !evaluated
-                              ? 'Pending'
-                              : pick?.won
-                                ? 'Win'
-                                : 'Loss'
-                          }
-                        >
-                          {team.short}
-                        </span>
-                      ) : (
-                        <span class="pick-empty">—</span>
-                      )}
-                    </td>
-                  );
-                })}
-                <td>
-                  <span class:list={['status-badge', player.eliminated ? 'status-dead' : 'status-alive']}>
-                    {player.eliminated ? `R${player.eliminatedRound}` : 'ALIVE'}
-                  </span>
-                </td>
-              </tr>
-            ))}
+          <tbody id="lms-picks-tbody">
+            <tr>
+              <td colspan={resolved.totalRounds + 2} class="picks-loading">Loading picks…</td>
+            </tr>
           </tbody>
         </table>
       </div>
 
       <section class="teams-section">
         <h2 class="section-title mk-gold-text">
-          Teams Playing Round {resolved.currentRound}
+          Teams Playing Round <span data-lms-round>{resolved.currentRound}</span>
         </h2>
-        <div class="teams-grid">
-          {teamsInRound.map((team) => {
-            const pickedBy = currentRoundPicksRevealed
-              ? alive.filter((p) => {
-                  const pick = p.picks.find((pk) => pk.round === resolved.currentRound);
-                  return pick?.teamId === team.id;
-                })
-              : [];
-            return (
-              <div class="team-card mk-panel" style={`--team-color: ${team.color}`}>
-                <span class="team-card__short">{team.short}</span>
-                <span class="team-card__name">{team.name}</span>
-                <span class="team-card__picked">
-                  {!currentRoundPicksRevealed
-                    ? 'Picks hidden until deadline'
-                    : pickedBy.length > 0
-                      ? `Picked by: ${pickedBy.map((p) => p.name).join(', ')}`
-                      : 'No picks yet'}
-                </span>
-              </div>
-            );
-          })}
+        <div class="teams-grid" id="lms-teams-grid">
+          <p class="picks-loading">Loading…</p>
         </div>
       </section>
     </div>
@@ -208,6 +129,12 @@ const alive = getAlivePlayers(resolved);
     padding: 0.75rem 1rem;
     text-align: center;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .picks-loading {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 2rem !important;
   }
 
   .row--dead {

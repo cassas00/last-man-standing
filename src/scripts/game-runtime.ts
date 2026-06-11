@@ -4,7 +4,7 @@ import { loadPoolState, playersFromPool } from "../lib/pool-store";
 import { applyPrizeToDom, loadPoolSettings } from "../lib/pool-settings-store";
 import { loadResults } from "../lib/results-store";
 import type { ResolvedPlayer, ResolvedGame } from "../utils/engine";
-import { resolveGameState } from "../utils/engine";
+import { getTeamsPlayingInRound, resolveGameState } from "../utils/engine";
 import { areRoundPicksRevealed, formatScheduleTime } from "../utils/schedule";
 import type { RoundMatch, Team } from "../data/game";
 import { getTeam } from "../data/game";
@@ -103,9 +103,122 @@ function renderMatchCard(match: RoundMatch): string {
   </div>`;
 }
 
+function renderPickCell(
+  pick: ResolvedPlayer["picks"][number] | undefined,
+  revealed: boolean,
+  evaluated: boolean,
+  teams: Team[],
+): string {
+  if (pick && !revealed) {
+    return `<span class="pick-badge pick-badge--hidden" title="Hidden until deadline">?</span>`;
+  }
+
+  const team = pick && revealed ? teamById(teams, pick.teamId) : undefined;
+  if (!team) {
+    return `<span class="pick-empty">—</span>`;
+  }
+
+  const classes = ["pick-badge"];
+  if (evaluated && pick?.won) classes.push("pick-badge--win");
+  if (evaluated && pick && !pick.won) classes.push("pick-badge--loss");
+  if (!evaluated) classes.push("pick-badge--pending");
+
+  const title = !evaluated ? "Pending" : pick?.won ? "Win" : "Loss";
+
+  return `<span class="${classes.join(" ")}" style="--team-color: ${team.color}" title="${title}">${team.short}</span>`;
+}
+
+function applyPicksPage(
+  resolved: ResolvedGame,
+  config: GameConfig,
+  matches: RoundMatch[],
+) {
+  const tbody = document.getElementById("lms-picks-tbody");
+  const teamsGrid = document.getElementById("lms-teams-grid");
+  if (!tbody && !teamsGrid) return;
+
+  const registered = resolved.players
+    .filter((p) => p.name !== "—")
+    .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+
+  const currentRoundPicksRevealed = areRoundPicksRevealed(resolved.currentRound, matches);
+  const alive = resolved.players.filter((p) => !p.eliminated && p.name !== "—");
+
+  const subEl = document.querySelector("[data-lms-picks-sub]");
+  if (subEl) {
+    subEl.textContent = currentRoundPicksRevealed
+      ? `Round ${resolved.currentRound} picks are revealed. ${resolved.phaseLabel}.`
+      : `Picks stay hidden until the deadline. ${resolved.phaseLabel}.`;
+  }
+
+  if (tbody) {
+    if (registered.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="${config.totalRounds + 2}" class="picks-loading">No players registered yet.</td></tr>`;
+    } else {
+      tbody.innerHTML = registered
+        .map((player) => {
+          const roundCells = Array.from({ length: config.totalRounds }, (_, i) => {
+            const round = i + 1;
+            const pick = player.picks.find((p) => p.round === round);
+            const revealed = areRoundPicksRevealed(round, matches);
+            const evaluated = resolved.evaluatedRound >= round;
+            return `<td class="pick-cell">${renderPickCell(pick, revealed, evaluated, config.teams)}</td>`;
+          }).join("");
+
+          return `<tr class="${player.eliminated ? "row--dead" : ""}">
+            <td class="fighter-cell"><span class="fighter-cell__name">${player.name}</span></td>
+            ${roundCells}
+            <td><span class="status-badge ${player.eliminated ? "status-dead" : "status-alive"}">${player.eliminated ? `R${player.eliminatedRound}` : "ALIVE"}</span></td>
+          </tr>`;
+        })
+        .join("");
+    }
+  }
+
+  if (teamsGrid) {
+    const teamsInRound = getTeamsPlayingInRound(
+      resolved.currentRound,
+      matches,
+      config.teams,
+    );
+
+    teamsGrid.innerHTML = teamsInRound
+      .map((team) => {
+        const pickedBy = currentRoundPicksRevealed
+          ? alive.filter((p) => {
+              const pick = p.picks.find((pk) => pk.round === resolved.currentRound);
+              return pick?.teamId === team.id;
+            })
+          : [];
+
+        const pickedLabel = !currentRoundPicksRevealed
+          ? "Picks hidden until deadline"
+          : pickedBy.length > 0
+            ? `Picked by: ${pickedBy.map((p) => p.name).join(", ")}`
+            : "No picks yet";
+
+        return `<div class="team-card mk-panel" style="--team-color: ${team.color}">
+          <span class="team-card__short">${team.short}</span>
+          <span class="team-card__name">${team.name}</span>
+          <span class="team-card__picked">${pickedLabel}</span>
+        </div>`;
+      })
+      .join("");
+  }
+}
+
 function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches: RoundMatch[]) {
   const alive = resolved.players.filter((p) => !p.eliminated && p.name !== "—");
   const eliminated = resolved.players.filter((p) => p.eliminated);
+
+  const enterCta = document.getElementById("lms-enter-cta");
+  if (enterCta) {
+    enterCta.hidden = !resolved.picksOpen;
+    const textEl = enterCta.querySelector("[data-lms-enter-cta-text]");
+    if (textEl) {
+      textEl.textContent = `Round ${resolved.currentRound} picks are open — submit your team before the deadline.`;
+    }
+  }
 
   document.querySelectorAll("[data-lms-round]").forEach((el) => {
     el.textContent = String(resolved.currentRound);
@@ -199,6 +312,8 @@ function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches:
     const roundMatches = matches.filter((m) => m.round === resolved.currentRound);
     matchList.innerHTML = roundMatches.map((match) => renderMatchCard(match)).join("");
   }
+
+  applyPicksPage(resolved, config, matches);
 }
 
 export async function tickGameState() {

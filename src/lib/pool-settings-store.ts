@@ -1,5 +1,5 @@
 import type { PoolSettings } from "../types/pool-settings";
-import { emptyPoolSettings } from "../types/pool-settings";
+import { emptyPoolSettings, migratePoolSettings } from "../types/pool-settings";
 import { getAdminToken } from "./results-store";
 
 const SETTINGS_API = "/api/pool-settings";
@@ -9,7 +9,7 @@ function readDevSettings(): PoolSettings {
   const raw = localStorage.getItem(DEV_STORAGE_KEY);
   if (!raw) return emptyPoolSettings();
   try {
-    return JSON.parse(raw) as PoolSettings;
+    return migratePoolSettings(JSON.parse(raw));
   } catch {
     return emptyPoolSettings();
   }
@@ -22,15 +22,15 @@ function writeDevSettings(settings: PoolSettings) {
 export async function loadPoolSettings(): Promise<PoolSettings> {
   try {
     const res = await fetch(SETTINGS_API, { cache: "no-store" });
-    if (res.ok) return (await res.json()) as PoolSettings;
+    if (res.ok) return migratePoolSettings(await res.json());
   } catch {
     // local dev without Netlify
   }
   return readDevSettings();
 }
 
-export async function savePrizeAmount(
-  prizeAmount: string,
+async function postSettings(
+  body: Record<string, unknown>,
 ): Promise<{ ok: boolean; settings?: PoolSettings; error?: string }> {
   const token = getAdminToken();
 
@@ -42,30 +42,76 @@ export async function savePrizeAmount(
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ prizeAmount }),
+      body: JSON.stringify(body),
     });
-    const body = (await res.json()) as {
+    const result = (await res.json()) as {
       ok: boolean;
       settings?: PoolSettings;
       error?: string;
     };
-    if (body.ok && body.settings) {
-      writeDevSettings(body.settings);
+    if (result.ok && result.settings) {
+      writeDevSettings(migratePoolSettings(result.settings));
     }
-    return body;
+    return result;
   } catch {
     if (token !== "dev-admin") {
       return { ok: false, error: "Could not save. Use pnpm dev:netlify for shared storage." };
     }
 
-    const settings: PoolSettings = {
-      version: 1,
-      prizeAmount: prizeAmount.trim(),
+    const current = readDevSettings();
+    const updated: PoolSettings = {
+      ...current,
       updatedAt: new Date().toISOString(),
     };
-    writeDevSettings(settings);
-    return { ok: true, settings };
+
+    if (body.prizeAmount !== undefined) {
+      updated.prizeAmount = String(body.prizeAmount).trim();
+    }
+
+    if (body.roundExtensions !== undefined) {
+      const merged = { ...(current.roundExtensions ?? {}) };
+      for (const [round, ext] of Object.entries(
+        body.roundExtensions as Record<string, { cutoffAt: string } | null>,
+      )) {
+        if (ext === null) {
+          delete merged[round];
+        } else {
+          merged[round] = { cutoffAt: ext.cutoffAt, updatedAt: new Date().toISOString() };
+        }
+      }
+      updated.roundExtensions = merged;
+    }
+
+    writeDevSettings(migratePoolSettings(updated));
+    return { ok: true, settings: migratePoolSettings(updated) };
   }
+}
+
+export async function savePrizeAmount(
+  prizeAmount: string,
+): Promise<{ ok: boolean; settings?: PoolSettings; error?: string }> {
+  return postSettings({ prizeAmount });
+}
+
+export async function saveRoundExtension(
+  round: number,
+  cutoffAt: string,
+): Promise<{ ok: boolean; settings?: PoolSettings; error?: string }> {
+  return postSettings({
+    roundExtensions: {
+      [String(round)]: { cutoffAt },
+    },
+  });
+}
+
+export async function clearRoundExtension(
+  round: number,
+): Promise<{ ok: boolean; settings?: PoolSettings; error?: string }> {
+  return postSettings({
+    roundExtensions: {
+      [String(round)]: null,
+    },
+  });
 }
 
 export function applyPrizeToDom(settings: PoolSettings) {

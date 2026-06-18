@@ -7,12 +7,15 @@ import {
   type AdminSetPickRequest,
 } from "../../src/lib/admin-pool";
 import { addPlayerToState, applyPickToState } from "../../src/lib/pool-mutations";
+import { scheduleOptionsFromSettings } from "../../src/lib/schedule-options";
 import type { PoolState } from "../../src/types/pool";
 import { emptyPoolState, migratePoolState } from "../../src/types/pool";
+import { migratePoolSettings } from "../../src/types/pool-settings";
 import { getAuthHeader, verifyAdminToken } from "../lib/admin-auth";
 
 const STORE_NAME = "lms-pool";
 const STATE_KEY = "state";
+const SETTINGS_KEY = "settings";
 
 type AdminBody =
   | ({ action: "addPlayer" } & AdminAddPlayerRequest)
@@ -41,9 +44,11 @@ export default async (req: Request, _context: Context) => {
 
   const store = getStore(STORE_NAME);
   const state = await readState(store);
+  const settingsRaw = await store.get(SETTINGS_KEY, { type: "json" });
+  const scheduleOptions = scheduleOptionsFromSettings(migratePoolSettings(settingsRaw));
 
   if (body.action === "addPlayer") {
-    const error = validateAdminAddPlayer(state, body);
+    const error = validateAdminAddPlayer(state, body, scheduleOptions);
     if (error) {
       return Response.json({ ok: false, error }, { status: 400 });
     }
@@ -64,7 +69,7 @@ export default async (req: Request, _context: Context) => {
   }
 
   if (body.action === "setPick") {
-    const error = validateAdminSetPick(state, body);
+    const error = validateAdminSetPick(state, body, scheduleOptions);
     if (error) {
       return Response.json({ ok: false, error }, { status: 400 });
     }

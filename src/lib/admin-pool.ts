@@ -3,6 +3,11 @@ import { matches, teams } from "../data/game";
 import { rounds } from "../data/rounds";
 import type { PoolState } from "../types/pool";
 import { getTeamsPlayingInRound } from "../utils/engine";
+import {
+  getRoundSchedule,
+  getTeamsBlockedBeforeCutoff,
+  type ScheduleOptions,
+} from "../utils/schedule";
 import { getTeamsUsedByPlayer } from "./pool-validation";
 
 export interface AdminAddPlayerRequest {
@@ -31,6 +36,7 @@ function validateTeamPick(
   teamId: string,
   allMatches: RoundMatch[] = matches,
   allTeams: Team[] = teams,
+  scheduleOptions: ScheduleOptions = {},
 ): string | null {
   if (!Number.isInteger(round) || round < 1 || round > rounds.length) {
     return "Invalid round.";
@@ -41,6 +47,15 @@ function validateTeamPick(
   );
   if (!playingIds.has(teamId)) {
     return `Pick a team playing in Round ${round}.`;
+  }
+
+  const schedule = getRoundSchedule(round, allMatches, scheduleOptions);
+  if (schedule) {
+    const blocked = getTeamsBlockedBeforeCutoff(round, allMatches, schedule.cutoffAt);
+    const currentRoundPick = state.entries[playerId]?.picks.find((p) => p.round === round);
+    if (blocked.has(teamId) && currentRoundPick?.teamId !== teamId) {
+      return "That team's match kicks off before the pick deadline.";
+    }
   }
 
   const usedByPlayer = getTeamsUsedByPlayer(state, playerId);
@@ -56,6 +71,7 @@ function validateTeamPick(
 export function validateAdminAddPlayer(
   state: PoolState,
   body: AdminAddPlayerRequest,
+  scheduleOptions: ScheduleOptions = {},
 ): string | null {
   const nameError = validateName(body.name);
   if (nameError) return nameError;
@@ -66,12 +82,13 @@ export function validateAdminAddPlayer(
     return "Provide both round and team to assign a pick, or leave both empty to add the player only.";
   }
 
-  return validateTeamPick(state, "__new__", body.round, body.teamId);
+  return validateTeamPick(state, "__new__", body.round, body.teamId, matches, teams, scheduleOptions);
 }
 
 export function validateAdminSetPick(
   state: PoolState,
   body: AdminSetPickRequest,
+  scheduleOptions: ScheduleOptions = {},
 ): string | null {
   if (!body.playerId || typeof body.playerId !== "string") {
     return "Invalid player.";
@@ -81,5 +98,13 @@ export function validateAdminSetPick(
     return "Player not found.";
   }
 
-  return validateTeamPick(state, body.playerId, body.round, body.teamId);
+  return validateTeamPick(
+    state,
+    body.playerId,
+    body.round,
+    body.teamId,
+    matches,
+    teams,
+    scheduleOptions,
+  );
 }

@@ -72,6 +72,33 @@ import { rounds } from '../data/rounds';
           <div id="player-admin-list" class="player-admin-list"></div>
         </section>
 
+        <section class="admin-panel mk-panel extend-admin">
+          <h2 class="section-title mk-gold-text">Extend pick deadline</h2>
+          <p class="extend-admin__hint">
+            Override the pick deadline for a round. Teams in matches that kick off before the new deadline are blocked for new picks — existing picks are kept.
+          </p>
+          <div class="extend-admin__form">
+            <label class="field">
+              <span class="field__label">Round</span>
+              <select id="extend-round" class="field__input">
+                {rounds.map((r) => (
+                  <option value={r.round} selected={r.round === 2}>{r.round}. {r.name}</option>
+                ))}
+              </select>
+            </label>
+            <label class="field">
+              <span class="field__label">New deadline (UK time)</span>
+              <input type="datetime-local" id="extend-deadline" class="field__input" />
+            </label>
+            <div class="extend-admin__actions">
+              <button type="button" id="extend-midnight-btn" class="admin-btn admin-btn--ghost">Midnight tonight</button>
+              <button type="button" id="extend-save-btn" class="admin-btn">Save extension</button>
+              <button type="button" id="extend-clear-btn" class="admin-btn admin-btn--ghost">Clear extension</button>
+            </div>
+          </div>
+          <p id="extend-summary" class="extend-admin__summary"></p>
+        </section>
+
         <section class="admin-panel mk-panel prize-admin">
           <h2 class="section-title mk-gold-text">Prize pool</h2>
           <form id="prize-form" class="prize-form">
@@ -102,15 +129,17 @@ import { rounds } from '../data/rounds';
 <script>
   import { gameConfig } from '../lib/game-config';
   import { getTeam } from '../data/game';
-  import { formatScheduleTime } from '../utils/schedule';
+  import { formatScheduleTime, getRoundSchedule, getTeamsBlockedBeforeCutoff, getNextDayMidnightLocal, getUkTimeOnKickoffDay } from '../utils/schedule';
   import { applyResults } from '../lib/apply-results';
   import type { ResultsState } from '../types/results';
   import type { RoundMatch } from '../data/game';
-  import { loadPoolSettings, savePrizeAmount } from '../lib/pool-settings-store';
+  import { loadPoolSettings, savePrizeAmount, saveRoundExtension, clearRoundExtension } from '../lib/pool-settings-store';
+  import { scheduleOptionsFromSettings } from '../lib/schedule-options';
+  import { getAvailableTeamsForPlayer } from '../lib/pool-validation';
   import { adminAddPlayer, adminSetPick } from '../lib/admin-pool-store';
   import { loadPoolState } from '../lib/pool-store';
-  import { getTeamsPlayingInRound } from '../utils/engine';
   import type { PoolState } from '../types/pool';
+  import type { PoolSettings } from '../types/pool-settings';
   import {
     adminLogin,
     clearAdminSession,
@@ -137,13 +166,24 @@ import { rounds } from '../data/rounds';
   const newPlayerTeam = document.getElementById('new-player-team') as HTMLSelectElement;
   const addPlayerRoundLabel = document.getElementById('add-player-round-label') as HTMLElement;
   const playerAdminList = document.getElementById('player-admin-list') as HTMLElement;
+  const extendRound = document.getElementById('extend-round') as HTMLSelectElement;
+  const extendDeadline = document.getElementById('extend-deadline') as HTMLInputElement;
+  const extendMidnightBtn = document.getElementById('extend-midnight-btn') as HTMLButtonElement;
+  const extendSaveBtn = document.getElementById('extend-save-btn') as HTMLButtonElement;
+  const extendClearBtn = document.getElementById('extend-clear-btn') as HTMLButtonElement;
+  const extendSummary = document.getElementById('extend-summary') as HTMLElement;
 
   const baseMatches = gameConfig.matches;
   const allTeams = gameConfig.teams;
   let resultsState: ResultsState = { version: 1, results: {} };
   let poolState: PoolState = { version: 2, entries: {} };
+  let poolSettings: PoolSettings = { version: 2, prizeAmount: '', roundExtensions: {} };
   let savingMatch: number | null = null;
   let savingPlayer: string | null = null;
+
+  function scheduleOptions() {
+    return scheduleOptionsFromSettings(poolSettings);
+  }
 
   function setStatus(message: string, type: 'ok' | 'error' | 'info' = 'info') {
     adminStatus.hidden = false;
@@ -223,12 +263,19 @@ import { rounds } from '../data/rounds';
       .join('');
   }
 
-  function teamsForRound(round: number) {
-    return getTeamsPlayingInRound(round, baseMatches, allTeams);
+  function teamsForPlayer(round: number, playerId: string) {
+    return getAvailableTeamsForPlayer(
+      poolState,
+      playerId,
+      round,
+      baseMatches,
+      allTeams,
+      scheduleOptions(),
+    );
   }
 
-  function populateTeamSelect(select: HTMLSelectElement, round: number, selectedId = '') {
-    const teams = teamsForRound(round);
+  function populateTeamSelect(select: HTMLSelectElement, round: number, playerId = '__new__', selectedId = '') {
+    const teams = teamsForPlayer(round, playerId);
     const keepFirst = select.options[0]?.value === '';
     select.innerHTML = keepFirst
       ? '<option value="">Add without a pick</option>'
@@ -239,7 +286,56 @@ import { rounds } from '../data/rounds';
       opt.textContent = team.name;
       select.appendChild(opt);
     }
-    if (selectedId) select.value = selectedId;
+    if (selectedId && [...select.options].some((o) => o.value === selectedId)) {
+      select.value = selectedId;
+    }
+  }
+
+  function renderExtensionSummary() {
+    const round = Number(extendRound.value);
+    const opts = scheduleOptions();
+    const schedule = getRoundSchedule(round, baseMatches, opts);
+    if (!schedule) {
+      extendSummary.textContent = '';
+      return;
+    }
+
+    const defaultSchedule = getRoundSchedule(round, baseMatches, {});
+    const isExtended = defaultSchedule && schedule.cutoffAt !== defaultSchedule.cutoffAt;
+    const blocked = getTeamsBlockedBeforeCutoff(round, baseMatches, schedule.cutoffAt);
+    const blockedNames = [...blocked]
+      .map((id) => allTeams.find((t) => t.id === id)?.name)
+      .filter(Boolean);
+
+    let text = `Round ${round} picks close ${formatScheduleTime(schedule.cutoffAt)}`;
+    if (isExtended) {
+      text += ` (extended from ${formatScheduleTime(defaultSchedule!.cutoffAt)})`;
+    }
+    if (blockedNames.length > 0) {
+      text += `. Blocked for new picks: ${blockedNames.join(', ')}.`;
+    }
+    extendSummary.textContent = text;
+  }
+
+  function ukIsoToDatetimeLocal(iso: string): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/London',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date(iso));
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
+    return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+  }
+
+  function datetimeLocalToUkIso(value: string): string {
+    const [datePart, timePart] = value.split('T');
+    const [y, m, d] = datePart.split('-').map(Number);
+    const [hh, mi] = timePart.split(':').map(Number);
+    return getUkTimeOnKickoffDay(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}T12:00:00Z`, hh, mi);
   }
 
   function renderPlayers() {
@@ -261,7 +357,8 @@ import { rounds } from '../data/rounds';
         const pick = entry.picks.find((p) => p.round === round);
         const team = pick ? allTeams.find((t) => t.id === pick.teamId) : null;
         const busy = savingPlayer === entry.playerId;
-        const teamOptions = teamsForRound(round)
+        const available = teamsForPlayer(round, entry.playerId);
+        const teamOptions = available
           .map((t) => {
             const selected = pick?.teamId === t.id ? 'selected' : '';
             return `<option value="${t.id}" ${selected}>${t.name}</option>`;
@@ -293,9 +390,20 @@ import { rounds } from '../data/rounds';
     ]);
     poolState = state;
     resultsState = results;
+    poolSettings = settings;
     prizeInput.value = settings.prizeAmount ?? '';
     renderMatches();
     renderPlayers();
+    renderExtensionSummary();
+    syncExtendDeadlineInput();
+  }
+
+  function syncExtendDeadlineInput() {
+    const round = Number(extendRound.value);
+    const schedule = getRoundSchedule(round, baseMatches, scheduleOptions());
+    if (schedule) {
+      extendDeadline.value = ukIsoToDatetimeLocal(schedule.cutoffAt);
+    }
   }
 
   async function handleResultAction(matchNumber: number, action: string) {
@@ -428,6 +536,55 @@ import { rounds } from '../data/rounds';
       setStatus('Prize amount saved.', 'ok');
     } else {
       setStatus(result.error ?? 'Could not save prize.', 'error');
+    }
+  });
+
+  extendRound.addEventListener('change', () => {
+    syncExtendDeadlineInput();
+    renderExtensionSummary();
+  });
+
+  extendMidnightBtn.addEventListener('click', () => {
+    const round = Number(extendRound.value);
+    const schedule = getRoundSchedule(round, baseMatches, {});
+    if (!schedule?.firstKickoffAt) return;
+    const midnight = getNextDayMidnightLocal(schedule.firstKickoffAt);
+    extendDeadline.value = ukIsoToDatetimeLocal(midnight);
+  });
+
+  extendSaveBtn.addEventListener('click', async () => {
+    const round = Number(extendRound.value);
+    if (!extendDeadline.value) {
+      setStatus('Choose a deadline.', 'error');
+      return;
+    }
+    const cutoffAt = datetimeLocalToUkIso(extendDeadline.value);
+    extendSaveBtn.disabled = true;
+    const result = await saveRoundExtension(round, cutoffAt);
+    extendSaveBtn.disabled = false;
+    if (result.ok && result.settings) {
+      poolSettings = result.settings;
+      renderExtensionSummary();
+      renderPlayers();
+      setStatus(`Round ${round} deadline extended to ${formatScheduleTime(cutoffAt)}.`, 'ok');
+    } else {
+      setStatus(result.error ?? 'Could not save extension.', 'error');
+    }
+  });
+
+  extendClearBtn.addEventListener('click', async () => {
+    const round = Number(extendRound.value);
+    extendClearBtn.disabled = true;
+    const result = await clearRoundExtension(round);
+    extendClearBtn.disabled = false;
+    if (result.ok && result.settings) {
+      poolSettings = result.settings;
+      syncExtendDeadlineInput();
+      renderExtensionSummary();
+      renderPlayers();
+      setStatus(`Round ${round} extension cleared.`, 'ok');
+    } else {
+      setStatus(result.error ?? 'Could not clear extension.', 'error');
     }
   });
 
@@ -645,6 +802,39 @@ import { rounds } from '../data/rounds';
 
   .prize-admin {
     margin-bottom: 1.5rem;
+  }
+
+  .extend-admin {
+    margin-bottom: 1.5rem;
+  }
+
+  .extend-admin__hint,
+  .extend-admin__summary {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    line-height: 1.45;
+  }
+
+  .extend-admin__form {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .extend-admin__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  @media (min-width: 600px) {
+    .extend-admin__form {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .extend-admin__actions {
+      grid-column: 1 / -1;
+    }
   }
 
   .prize-form {

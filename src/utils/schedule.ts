@@ -2,8 +2,12 @@ import type { RoundMatch } from "../data/game";
 import { PICK_CUTOFF_MS, ROUND_1_CUTOFF_HOUR_UK } from "../data/kickoffs";
 
 export const SCHEDULE_TIMEZONE = "Europe/London";
-/** Estimated full-time whistle after kick-off. */
-export const MATCH_DURATION_MS = 2 * 60 * 60 * 1000;
+/** Estimated full-time whistle after kick-off (includes stoppage / extra time). */
+export const MATCH_DURATION_MS = 3 * 60 * 60 * 1000;
+
+export interface ScheduleOptions {
+  cutoffOverrides?: Record<number, string>;
+}
 
 export interface RoundSchedule {
   round: number;
@@ -97,11 +101,33 @@ function getRoundCutoffAt(
   round: number,
   firstKickoffIso: string,
   firstKickoffMs: number,
+  options: ScheduleOptions = {},
 ): string {
+  const override = options.cutoffOverrides?.[round];
+  if (override) return override;
+
   if (round === 1) {
     return getUkTimeOnKickoffDay(firstKickoffIso, ROUND_1_CUTOFF_HOUR_UK);
   }
   return new Date(firstKickoffMs - PICK_CUTOFF_MS).toISOString();
+}
+
+/** Teams in matches that kick off before the pick deadline (blocked for new picks). */
+export function getTeamsBlockedBeforeCutoff(
+  round: number,
+  matches: RoundMatch[],
+  cutoffAt: string,
+): Set<string> {
+  const cutoffMs = new Date(cutoffAt).getTime();
+  const blocked = new Set<string>();
+  for (const match of matches) {
+    if (match.round !== round || !match.kickoffAt) continue;
+    if (new Date(match.kickoffAt).getTime() < cutoffMs) {
+      if (match.homeTeamId) blocked.add(match.homeTeamId);
+      if (match.awayTeamId) blocked.add(match.awayTeamId);
+    }
+  }
+  return blocked;
 }
 
 /** BST in Jun–Jul; GMT otherwise. */
@@ -131,7 +157,11 @@ export function getRoundOpensAt(round: number, matches: RoundMatch[]): string {
   return new Date(new Date(prevLast.kickoffAt).getTime() + MATCH_DURATION_MS).toISOString();
 }
 
-export function getRoundSchedule(round: number, matches: RoundMatch[]): RoundSchedule | undefined {
+export function getRoundSchedule(
+  round: number,
+  matches: RoundMatch[],
+  options: ScheduleOptions = {},
+): RoundSchedule | undefined {
   const roundMatches = roundMatchesWithKickoff(round, matches);
   if (roundMatches.length === 0) return undefined;
 
@@ -144,7 +174,7 @@ export function getRoundSchedule(round: number, matches: RoundMatch[]): RoundSch
 
   const firstKickoffMs = new Date(earliest.kickoffAt!).getTime();
   const lastKickoffMs = new Date(latest.kickoffAt!).getTime();
-  const cutoffAt = getRoundCutoffAt(round, earliest.kickoffAt!, firstKickoffMs);
+  const cutoffAt = getRoundCutoffAt(round, earliest.kickoffAt!, firstKickoffMs, options);
   let opensAt = getRoundOpensAt(round, matches);
 
   // Guard against overlapping matchdays where the previous round ends after this cutoff.
@@ -173,24 +203,32 @@ export function areRoundPicksRevealed(
   round: number,
   matches: RoundMatch[],
   now = Date.now(),
+  options: ScheduleOptions = {},
 ): boolean {
-  const schedule = getRoundSchedule(round, matches);
+  const schedule = getRoundSchedule(round, matches, options);
   if (!schedule) return false;
   return isPastCutoff(schedule.cutoffAt, now);
 }
 
-export function getAllRoundSchedules(matches: RoundMatch[]): RoundSchedule[] {
+export function getAllRoundSchedules(
+  matches: RoundMatch[],
+  options: ScheduleOptions = {},
+): RoundSchedule[] {
   const roundNumbers = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
   return roundNumbers
-    .map((round) => getRoundSchedule(round, matches))
+    .map((round) => getRoundSchedule(round, matches, options))
     .filter((s): s is RoundSchedule => s !== undefined);
 }
 
-export function verifyRoundSeparation(matches: RoundMatch[], totalRounds: number): RoundGap[] {
+export function verifyRoundSeparation(
+  matches: RoundMatch[],
+  totalRounds: number,
+  options: ScheduleOptions = {},
+): RoundGap[] {
   const gaps: RoundGap[] = [];
   for (let round = 1; round < totalRounds; round++) {
-    const current = getRoundSchedule(round, matches);
-    const next = getRoundSchedule(round + 1, matches);
+    const current = getRoundSchedule(round, matches, options);
+    const next = getRoundSchedule(round + 1, matches, options);
     if (!current || !next) continue;
 
     const gapMs =
@@ -208,8 +246,12 @@ export function verifyRoundSeparation(matches: RoundMatch[], totalRounds: number
   return gaps;
 }
 
-export function roundsOverlap(matches: RoundMatch[], totalRounds: number): boolean {
-  return verifyRoundSeparation(matches, totalRounds).some((gap) => gap.overlaps);
+export function roundsOverlap(
+  matches: RoundMatch[],
+  totalRounds: number,
+  options: ScheduleOptions = {},
+): boolean {
+  return verifyRoundSeparation(matches, totalRounds, options).some((gap) => gap.overlaps);
 }
 
 export function allRoundResultsIn(round: number, matches: RoundMatch[]): boolean {

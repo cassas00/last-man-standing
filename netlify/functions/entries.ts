@@ -4,8 +4,12 @@ import type { PoolState, SubmitPickRequest } from "../../src/types/pool";
 import { emptyPoolState, migratePoolState } from "../../src/types/pool";
 import { applyPickToState } from "../../src/lib/pool-mutations";
 import { validatePick } from "../../src/lib/pool-validation";
+import { scheduleOptionsFromSettings } from "../../src/lib/schedule-options";
+import { migratePoolSettings } from "../../src/types/pool-settings";
+
 const STORE_NAME = "lms-pool";
 const STATE_KEY = "state";
+const SETTINGS_KEY = "settings";
 
 async function readState(store: ReturnType<typeof getStore>): Promise<PoolState> {
   const state = await store.get(STATE_KEY, { type: "json" });
@@ -31,7 +35,10 @@ export default async (req: Request, _context: Context) => {
     }
 
     const state = await readState(store);
-    const error = validatePick(state, body);
+    const settingsRaw = await store.get(SETTINGS_KEY, { type: "json" });
+    const scheduleOptions = scheduleOptionsFromSettings(migratePoolSettings(settingsRaw));
+
+    const error = validatePick(state, body, Date.now(), scheduleOptions);
     if (error) {
       return Response.json({ ok: false, error }, { status: 400 });
     }

@@ -72,6 +72,8 @@ import { gameConfig } from '../lib/game-config';
   import { applyResults } from '../lib/apply-results';
   import { loadPoolState, submitPick, getMySlotId, resolvePlayerId } from '../lib/pool-store';
   import { loadResults } from '../lib/results-store';
+  import { loadPoolSettings } from '../lib/pool-settings-store';
+  import { scheduleOptionsFromSettings } from '../lib/schedule-options';
   import {
     getAvailableTeamsForPlayer,
     getTeamsTakenInRound,
@@ -108,6 +110,7 @@ import { gameConfig } from '../lib/game-config';
 
   let currentRound = 1;
   let picksOpen = false;
+  let activeScheduleOptions = scheduleOptionsFromSettings({ version: 2, prizeAmount: '' });
 
   function setStatus(message: string, type: 'ok' | 'error' | 'info' = 'info') {
     statusEl.hidden = false;
@@ -129,6 +132,7 @@ import { gameConfig } from '../lib/game-config';
       currentRound,
       liveMatches,
       teams,
+      activeScheduleOptions,
     );
     const currentPick = state.entries[playerId]?.picks.find((p) => p.round === currentRound);
     const currentPickUnavailable =
@@ -171,7 +175,7 @@ import { gameConfig } from '../lib/game-config';
     aliveIds: Set<string>,
     liveMatches: typeof matches,
   ) {
-    const picksRevealed = areRoundPicksRevealed(currentRound, liveMatches);
+    const picksRevealed = areRoundPicksRevealed(currentRound, liveMatches, Date.now(), activeScheduleOptions);
     const takenThisRound = getTeamsTakenInRound(state, currentRound);
 
     const entries = Object.values(state.entries);
@@ -209,18 +213,20 @@ import { gameConfig } from '../lib/game-config';
   }
 
   async function refresh(savedState?: import('../types/pool').PoolState) {
-    const [{ state, source }, results] = savedState
-      ? [{ state: savedState, source: 'api' as const }, await loadResults()]
-      : await Promise.all([loadPoolState(), loadResults()]);
+    const [{ state, source }, results, settings] = savedState
+      ? [{ state: savedState, source: 'api' as const }, await loadResults(), await loadPoolSettings()]
+      : await Promise.all([loadPoolState(), loadResults(), loadPoolSettings()]);
+    const scheduleOptions = scheduleOptionsFromSettings(settings);
+    activeScheduleOptions = scheduleOptions;
     const { playersFromPool } = await import('../lib/pool-store');
     const players = playersFromPool(state);
     const liveMatches = applyResults(matches, results);
 
-    const resolved = resolveGameState(players, liveMatches, totalRounds, Date.now());
+    const resolved = resolveGameState(players, liveMatches, totalRounds, Date.now(), scheduleOptions);
     const survivors = resolved.players.filter((p) => !p.eliminated && p.name !== '—');
     currentRound = resolved.currentRound;
     picksOpen = resolved.picksOpen;
-    const schedule = getRoundSchedule(currentRound, liveMatches);
+    const schedule = getRoundSchedule(currentRound, liveMatches, scheduleOptions);
 
     pageKicker.textContent = `Round ${currentRound}`;
     rosterTitle.textContent = currentRound === 1 ? `Players (${Object.keys(state.entries).length})` : 'Survivors';
@@ -258,7 +264,7 @@ import { gameConfig } from '../lib/game-config';
     const mySlot = getMySlotId();
     const round1PlayerId = resolvePlayerId(state, 1, mySlot);
     const isRegistered = !!(mySlot && state.entries[mySlot]);
-    const registrationClosed = !isRegistrationOpen() && !isRegistered;
+    const registrationClosed = !isRegistrationOpen(Date.now(), activeScheduleOptions) && !isRegistered;
 
     const activePlayerId =
       currentRound === 1

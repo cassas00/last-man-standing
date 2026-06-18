@@ -6,6 +6,7 @@ import {
   verifyRoundSeparation,
   type RoundGap,
   type RoundSchedule,
+  type ScheduleOptions,
 } from "./schedule";
 
 export type RoundPhase =
@@ -50,8 +51,9 @@ export function getRoundPhase(
   matches: RoundMatch[],
   totalRounds: number,
   now = Date.now(),
+  scheduleOptions: ScheduleOptions = {},
 ): RoundPhase {
-  const schedule = getRoundSchedule(round, matches);
+  const schedule = getRoundSchedule(round, matches, scheduleOptions);
   if (!schedule) return "upcoming";
 
   const opensAt = new Date(schedule.opensAt).getTime();
@@ -59,7 +61,7 @@ export function getRoundPhase(
   const closesAt = new Date(schedule.closesAt).getTime();
   const nextOpensAt =
     round < totalRounds
-      ? new Date(getRoundSchedule(round + 1, matches)!.opensAt).getTime()
+      ? new Date(getRoundSchedule(round + 1, matches, scheduleOptions)!.opensAt).getTime()
       : Infinity;
 
   if (now < opensAt) return "upcoming";
@@ -94,9 +96,10 @@ export function getActiveRound(
   matches: RoundMatch[],
   totalRounds: number,
   now = Date.now(),
+  scheduleOptions: ScheduleOptions = {},
 ): number {
   for (let round = totalRounds; round >= 1; round--) {
-    const schedule = getRoundSchedule(round, matches);
+    const schedule = getRoundSchedule(round, matches, scheduleOptions);
     if (schedule && now >= new Date(schedule.opensAt).getTime()) return round;
   }
   return 1;
@@ -106,6 +109,7 @@ export function getEvaluatedRound(
   matches: RoundMatch[],
   totalRounds: number,
   now = Date.now(),
+  scheduleOptions: ScheduleOptions = {},
 ): number {
   let evaluated = 0;
 
@@ -113,7 +117,9 @@ export function getEvaluatedRound(
     if (!allRoundResultsIn(round, matches)) break;
 
     if (round < totalRounds) {
-      const nextOpensAt = new Date(getRoundSchedule(round + 1, matches)!.opensAt).getTime();
+      const nextOpensAt = new Date(
+        getRoundSchedule(round + 1, matches, scheduleOptions)!.opensAt,
+      ).getTime();
       if (now < nextOpensAt) break;
     }
 
@@ -145,6 +151,7 @@ export function derivePlayers(
   matches: RoundMatch[],
   evaluatedRound: number,
   now = Date.now(),
+  scheduleOptions: ScheduleOptions = {},
 ): ResolvedPlayer[] {
   return players.map((player) => {
     let eliminated = false;
@@ -157,7 +164,7 @@ export function derivePlayers(
     for (let round = 1; round <= evaluatedRound; round++) {
       if (eliminated) break;
 
-      const schedule = getRoundSchedule(round, matches);
+      const schedule = getRoundSchedule(round, matches, scheduleOptions);
       const cutoffPassed = schedule ? now >= new Date(schedule.cutoffAt).getTime() : false;
       const pick = picks.find((p) => p.round === round);
 
@@ -191,14 +198,21 @@ export function resolveGameState(
   matches: RoundMatch[],
   totalRounds: number,
   now = Date.now(),
+  scheduleOptions: ScheduleOptions = {},
 ): ResolvedGame {
-  const currentRound = getActiveRound(matches, totalRounds, now);
-  const evaluatedRound = getEvaluatedRound(matches, totalRounds, now);
-  const phase = getRoundPhase(currentRound, matches, totalRounds, now);
-  const schedule = getRoundSchedule(currentRound, matches);
-  const resolvedPlayers = derivePlayers(players, matches, evaluatedRound, now);
+  const currentRound = getActiveRound(matches, totalRounds, now, scheduleOptions);
+  const evaluatedRound = getEvaluatedRound(matches, totalRounds, now, scheduleOptions);
+  const phase = getRoundPhase(currentRound, matches, totalRounds, now, scheduleOptions);
+  const schedule = getRoundSchedule(currentRound, matches, scheduleOptions);
+  const resolvedPlayers = derivePlayers(
+    players,
+    matches,
+    evaluatedRound,
+    now,
+    scheduleOptions,
+  );
   const alive = resolvedPlayers.filter((p) => !p.eliminated);
-  const roundGaps = verifyRoundSeparation(matches, totalRounds);
+  const roundGaps = verifyRoundSeparation(matches, totalRounds, scheduleOptions);
 
   let winner: ResolvedPlayer | null = null;
   if (phase === "tournament-over" && alive.length === 1) {
@@ -217,7 +231,7 @@ export function resolveGameState(
     schedule,
     totalRounds,
     roundGaps,
-    scheduleOk: !roundsOverlap(matches, totalRounds),
+    scheduleOk: !roundsOverlap(matches, totalRounds, scheduleOptions),
     winner,
   };
 }

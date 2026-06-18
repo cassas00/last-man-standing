@@ -142,5 +142,5 @@ export {
   roundsOverlap,
 } from "../utils/schedule";
 
-export type { RoundSchedule, RoundGap } from "../utils/schedule";
+export type { RoundSchedule, RoundGap, ScheduleOptions } from "../utils/schedule";
 export type { ResolvedGame, ResolvedPlayer, RoundPhase } from "../utils/engine";

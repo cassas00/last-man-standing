@@ -3,7 +3,11 @@ import { matches, teams } from "../data/game";
 import { rounds } from "../data/rounds";
 import type { PoolState, SubmitPickRequest } from "../types/pool";
 import { resolveGameState, getTeamsPlayingInRound, getRoundPhase } from "../utils/engine";
-import { getRoundSchedule } from "../utils/schedule";
+import {
+  getRoundSchedule,
+  getTeamsBlockedBeforeCutoff,
+  type ScheduleOptions,
+} from "../utils/schedule";
 
 function poolToPlayers(state: PoolState): Player[] {
   return Object.values(state.entries).map((entry) => ({
@@ -41,18 +45,29 @@ export function getPlayerPickForRound(
   return state.entries[playerId]?.picks.find((p) => p.round === round)?.teamId;
 }
 
-export function isPickWindowOpen(round: number, now = Date.now()): boolean {
-  return getRoundPhase(round, matches, rounds.length, now) === "picks-open";
+export function isPickWindowOpen(
+  round: number,
+  now = Date.now(),
+  scheduleOptions: ScheduleOptions = {},
+): boolean {
+  return getRoundPhase(round, matches, rounds.length, now, scheduleOptions) === "picks-open";
 }
 
 /** New players may only join during the Round 1 pick window. */
-export function isRegistrationOpen(now = Date.now()): boolean {
-  return isPickWindowOpen(1, now);
+export function isRegistrationOpen(
+  now = Date.now(),
+  scheduleOptions: ScheduleOptions = {},
+): boolean {
+  return isPickWindowOpen(1, now, scheduleOptions);
 }
 
-export function getAliveRegisteredPlayers(state: PoolState, now = Date.now()): Player[] {
+export function getAliveRegisteredPlayers(
+  state: PoolState,
+  now = Date.now(),
+  scheduleOptions: ScheduleOptions = {},
+): Player[] {
   const players = poolToPlayers(state);
-  const resolved = resolveGameState(players, matches, rounds.length, now);
+  const resolved = resolveGameState(players, matches, rounds.length, now, scheduleOptions);
   return resolved.players.filter((p) => !p.eliminated && p.name !== "—");
 }
 
@@ -62,13 +77,22 @@ export function getAvailableTeamsForPlayer(
   round: number,
   allMatches: RoundMatch[] = matches,
   allTeams: Team[] = teams,
+  scheduleOptions: ScheduleOptions = {},
 ): Team[] {
   const playing = getTeamsPlayingInRound(round, allMatches, allTeams);
   const usedByPlayer = getTeamsUsedByPlayer(state, playerId);
   const currentRoundPick = state.entries[playerId]?.picks.find((p) => p.round === round);
 
+  const schedule = getRoundSchedule(round, allMatches, scheduleOptions);
+  const blocked = schedule
+    ? getTeamsBlockedBeforeCutoff(round, allMatches, schedule.cutoffAt)
+    : new Set<string>();
+
   return playing
-    .filter((team) => !usedByPlayer.has(team.id) || currentRoundPick?.teamId === team.id)
+    .filter((team) => {
+      if (blocked.has(team.id) && currentRoundPick?.teamId !== team.id) return false;
+      return !usedByPlayer.has(team.id) || currentRoundPick?.teamId === team.id;
+    })
     .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
 }
 
@@ -76,6 +100,7 @@ export function validatePick(
   state: PoolState,
   body: SubmitPickRequest,
   now = Date.now(),
+  scheduleOptions: ScheduleOptions = {},
 ): string | null {
   const round = body.round;
   if (!Number.isInteger(round) || round < 1 || round > rounds.length) {
@@ -86,8 +111,8 @@ export function validatePick(
     return "Invalid player.";
   }
 
-  if (!isPickWindowOpen(round, now)) {
-    const schedule = getRoundSchedule(round, matches);
+  if (!isPickWindowOpen(round, now, scheduleOptions)) {
+    const schedule = getRoundSchedule(round, matches, scheduleOptions);
     return schedule
       ? `Picks for Round ${round} are closed.`
       : "Picks are not open.";
@@ -100,6 +125,15 @@ export function validatePick(
     return `Pick a team playing in Round ${round}.`;
   }
 
+  const schedule = getRoundSchedule(round, matches, scheduleOptions);
+  if (schedule) {
+    const blocked = getTeamsBlockedBeforeCutoff(round, matches, schedule.cutoffAt);
+    const currentRoundPick = state.entries[body.playerId]?.picks.find((p) => p.round === round);
+    if (blocked.has(body.teamId) && currentRoundPick?.teamId !== body.teamId) {
+      return "That team's match kicks off before the pick deadline.";
+    }
+  }
+
   const usedByPlayer = getTeamsUsedByPlayer(state, body.playerId);
   const currentRoundPick = state.entries[body.playerId]?.picks.find((p) => p.round === round);
 
@@ -110,7 +144,7 @@ export function validatePick(
   const existing = state.entries[body.playerId];
 
   if (round === 1) {
-    if (!existing && !isRegistrationOpen(now)) {
+    if (!existing && !isRegistrationOpen(now, scheduleOptions)) {
       return "Registration is closed. The Round 1 deadline has passed.";
     }
 
@@ -124,7 +158,7 @@ export function validatePick(
     return "You must register in Round 1 before picking in later rounds.";
   }
 
-  const alive = getAliveRegisteredPlayers(state, now);
+  const alive = getAliveRegisteredPlayers(state, now, scheduleOptions);
   if (!alive.some((p) => p.id === body.playerId)) {
     return "Only surviving players can submit picks.";
   }

@@ -3,6 +3,8 @@ import type { PoolState, SubmitPickRequest, SubmitPickResponse } from "../types/
 import { emptyPoolState, migratePoolState } from "../types/pool";
 import { applyPickToState as applyPickMutation } from "./pool-mutations";
 import { validatePick, getTeamsTakenInRound, getTeamsUsedByPlayer } from "./pool-validation";
+import { loadPoolSettings } from "./pool-settings-store";
+import { scheduleOptionsFromSettings } from "./schedule-options";
 
 const API_PATH = "/api/entries";
 const DEV_STORAGE_KEY = "lms-pool-dev";
@@ -77,7 +79,9 @@ export async function submitPick(request: SubmitPickRequest): Promise<SubmitPick
     return body;
   } catch {
     const state = await readDevState();
-    const error = validatePick(state, request);
+    const settings = await loadPoolSettings();
+    const scheduleOptions = scheduleOptionsFromSettings(settings);
+    const error = validatePick(state, request, Date.now(), scheduleOptions);
     if (error) return { ok: false, error };
 
     applyPickToState(state, request);

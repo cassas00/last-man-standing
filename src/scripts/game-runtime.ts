@@ -2,6 +2,7 @@ import type { GameConfig } from "../lib/game-config";
 import { applyResults } from "../lib/apply-results";
 import { loadPoolState, playersFromPool } from "../lib/pool-store";
 import { applyPrizeToDom, loadPoolSettings } from "../lib/pool-settings-store";
+import { scheduleOptionsFromSettings } from "../lib/schedule-options";
 import { loadResults } from "../lib/results-store";
 import type { ResolvedPlayer, ResolvedGame } from "../utils/engine";
 import {
@@ -10,9 +11,11 @@ import {
   phaseLabel,
   resolveGameState,
 } from "../utils/engine";
-import { areRoundPicksRevealed, formatScheduleTime } from "../utils/schedule";
+import { areRoundPicksRevealed, formatScheduleTime, type ScheduleOptions } from "../utils/schedule";
 import type { RoundMatch, Team } from "../data/game";
 import { getTeam } from "../data/game";
+
+let activeScheduleOptions: ScheduleOptions = {};
 
 function getConfig(): GameConfig | null {
   const el = document.getElementById("lms-config");
@@ -146,7 +149,12 @@ function applyPicksPage(
     .filter((p) => p.name !== "—")
     .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
 
-  const currentRoundPicksRevealed = areRoundPicksRevealed(resolved.currentRound, matches);
+  const currentRoundPicksRevealed = areRoundPicksRevealed(
+    resolved.currentRound,
+    matches,
+    Date.now(),
+    activeScheduleOptions,
+  );
   const alive = resolved.players.filter((p) => !p.eliminated && p.name !== "—");
 
   const subEl = document.querySelector("[data-lms-picks-sub]");
@@ -165,7 +173,7 @@ function applyPicksPage(
           const roundCells = Array.from({ length: config.totalRounds }, (_, i) => {
             const round = i + 1;
             const pick = player.picks.find((p) => p.round === round);
-            const revealed = areRoundPicksRevealed(round, matches);
+            const revealed = areRoundPicksRevealed(round, matches, Date.now(), activeScheduleOptions);
             const evaluated = resolved.evaluatedRound >= round;
             return `<td class="pick-cell">${renderPickCell(pick, revealed, evaluated, config.teams)}</td>`;
           }).join("");
@@ -216,9 +224,10 @@ function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches:
   const alive = resolved.players.filter((p) => !p.eliminated && p.name !== "—");
   const eliminated = resolved.players.filter((p) => p.eliminated);
 
-  const enterCta = document.getElementById("lms-enter-cta");
+  const enterCta = document.getElementById("lms-enter-cta") as HTMLElement | null;
   if (enterCta) {
     enterCta.hidden = !resolved.picksOpen;
+    enterCta.style.display = resolved.picksOpen ? "" : "none";
     const textEl = enterCta.querySelector("[data-lms-enter-cta-text]");
     if (textEl) {
       textEl.textContent = `Round ${resolved.currentRound} picks are open — submit your team before the deadline.`;
@@ -286,7 +295,12 @@ function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches:
     }
   }
 
-  const picksRevealed = areRoundPicksRevealed(resolved.currentRound, matches);
+  const picksRevealed = areRoundPicksRevealed(
+    resolved.currentRound,
+    matches,
+    Date.now(),
+    activeScheduleOptions,
+  );
 
   const survivors = document.getElementById("lms-survivors");
   if (survivors) {
@@ -322,7 +336,7 @@ function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches:
     const phaseEl = el.querySelector("[data-lms-timeline-phase]");
     if (phaseEl) {
       phaseEl.textContent = phaseLabel(
-        getRoundPhase(round, matches, config.totalRounds, Date.now()),
+        getRoundPhase(round, matches, config.totalRounds, Date.now(), activeScheduleOptions),
       );
     }
   });
@@ -347,7 +361,14 @@ export async function tickGameState() {
   ]);
   const matches = applyResults(config.matches, results);
   const players = playersFromPool(state);
-  const resolved = resolveGameState(players, matches, config.totalRounds, Date.now());
+  activeScheduleOptions = scheduleOptionsFromSettings(settings);
+  const resolved = resolveGameState(
+    players,
+    matches,
+    config.totalRounds,
+    Date.now(),
+    activeScheduleOptions,
+  );
   applyResolvedState(resolved, config, matches);
   applyPrizeToDom(settings);
 }

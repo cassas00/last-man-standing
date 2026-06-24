@@ -82,7 +82,7 @@ import { rounds } from '../data/rounds';
               <span class="field__label">Round</span>
               <select id="extend-round" class="field__input">
                 {rounds.map((r) => (
-                  <option value={r.round} selected={r.round === 2}>{r.round}. {r.name}</option>
+                  <option value={r.round}>{r.round}. {r.name}</option>
                 ))}
               </select>
             </label>
@@ -129,6 +129,7 @@ import { rounds } from '../data/rounds';
 <script>
   import { gameConfig } from '../lib/game-config';
   import { getTeam } from '../data/game';
+  import { getActiveRound } from '../utils/engine';
   import { formatScheduleTime, getRoundSchedule, getTeamsBlockedBeforeCutoff, getNextDayMidnightLocal, getUkTimeOnKickoffDay } from '../utils/schedule';
   import { applyResults } from '../lib/apply-results';
   import type { ResultsState } from '../types/results';
@@ -180,6 +181,7 @@ import { rounds } from '../data/rounds';
   let poolSettings: PoolSettings = { version: 2, prizeAmount: '', roundExtensions: {} };
   let savingMatch: number | null = null;
   let savingPlayer: string | null = null;
+  let roundFiltersSynced = false;
 
   function scheduleOptions() {
     return scheduleOptionsFromSettings(poolSettings);
@@ -199,10 +201,28 @@ import { rounds } from '../data/rounds';
   function showLogin() {
     loginSection.hidden = false;
     adminSection.hidden = true;
+    roundFiltersSynced = false;
   }
 
   function currentMatches(): RoundMatch[] {
     return applyResults(baseMatches, resultsState);
+  }
+
+  function currentLmsRound(): number {
+    return getActiveRound(
+      currentMatches(),
+      gameConfig.totalRounds,
+      Date.now(),
+      scheduleOptions(),
+    );
+  }
+
+  function syncRoundFilters() {
+    if (roundFiltersSynced) return;
+    const round = String(currentLmsRound());
+    roundFilter.value = round;
+    extendRound.value = round;
+    roundFiltersSynced = true;
   }
 
   function matchResult(match: RoundMatch) {
@@ -392,6 +412,7 @@ import { rounds } from '../data/rounds';
     resultsState = results;
     poolSettings = settings;
     prizeInput.value = settings.prizeAmount ?? '';
+    syncRoundFilters();
     renderMatches();
     renderPlayers();
     renderExtensionSummary();
@@ -404,6 +425,29 @@ import { rounds } from '../data/rounds';
     if (schedule) {
       extendDeadline.value = ukIsoToDatetimeLocal(schedule.cutoffAt);
     }
+  }
+
+  function applyLocalMatchResult(matchNumber: number, action: string) {
+    const key = String(matchNumber);
+    const nextResults = { ...resultsState.results };
+
+    if (action === 'clear') {
+      delete nextResults[key];
+    } else if (action === 'draw') {
+      nextResults[key] = { isDraw: true };
+    } else {
+      const match = baseMatches.find((m) => m.matchNumber === matchNumber);
+      if (!match) return;
+      const winnerId = action === 'home' ? match.homeTeamId : match.awayTeamId;
+      if (!winnerId) return;
+      nextResults[key] = { winnerId };
+    }
+
+    resultsState = {
+      ...resultsState,
+      results: nextResults,
+      updatedAt: new Date().toISOString(),
+    };
   }
 
   async function handleResultAction(matchNumber: number, action: string) {
@@ -424,20 +468,26 @@ import { rounds } from '../data/rounds';
       return;
     }
 
+    applyLocalMatchResult(matchNumber, action);
     savingMatch = matchNumber;
     renderMatches();
 
-    const result = await saveMatchResult(payload);
-    savingMatch = null;
-
-    if (result.ok && result.state) {
-      resultsState = result.state;
-      setStatus(`Match #${matchNumber} updated.`, 'ok');
-    } else {
-      setStatus(result.error ?? 'Could not save result.', 'error');
+    try {
+      const result = await saveMatchResult(payload);
+      if (result.ok) {
+        resultsState = result.state ?? (await loadResults());
+        setStatus(`Match #${matchNumber} updated.`, 'ok');
+      } else {
+        resultsState = await loadResults();
+        setStatus(result.error ?? 'Could not save result.', 'error');
+      }
+    } catch {
+      resultsState = await loadResults();
+      setStatus('Could not save result.', 'error');
+    } finally {
+      savingMatch = null;
+      renderMatches();
     }
-
-    renderMatches();
   }
 
   matchList.addEventListener('click', (e) => {
@@ -472,6 +522,12 @@ import { rounds } from '../data/rounds';
       newPlayerTeam.value = '';
       setStatus(teamId ? `${name} added with Round ${round} pick.` : `${name} added.`, 'ok');
       renderPlayers();
+    } else if (result.ok) {
+      poolState = (await loadPoolState()).state;
+      newPlayerName.value = '';
+      newPlayerTeam.value = '';
+      setStatus(teamId ? `${name} added with Round ${round} pick.` : `${name} added.`, 'ok');
+      renderPlayers();
     } else {
       setStatus(result.error ?? 'Could not add player.', 'error');
     }
@@ -501,8 +557,8 @@ import { rounds } from '../data/rounds';
 
     savingPlayer = null;
 
-    if (result.ok && result.state) {
-      poolState = result.state;
+    if (result.ok) {
+      poolState = result.state ?? (await loadPoolState()).state;
       setStatus('Pick saved.', 'ok');
     } else {
       setStatus(result.error ?? 'Could not save pick.', 'error');

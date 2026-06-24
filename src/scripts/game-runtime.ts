@@ -11,7 +11,12 @@ import {
   phaseLabel,
   resolveGameState,
 } from "../utils/engine";
-import { areRoundPicksRevealed, formatScheduleTime, type ScheduleOptions } from "../utils/schedule";
+import {
+  areRoundPicksRevealed,
+  formatScheduleTime,
+  getRoundSchedule,
+  type ScheduleOptions,
+} from "../utils/schedule";
 import type { RoundMatch, Team } from "../data/game";
 import { getTeam } from "../data/game";
 
@@ -220,6 +225,44 @@ function applyPicksPage(
   }
 }
 
+function updateCutoffDisplays(
+  resolved: ResolvedGame,
+  matches: RoundMatch[],
+) {
+  if (resolved.schedule) {
+    const { cutoffAt, firstKickoffAt, firstMatchNumber } = resolved.schedule;
+    const cutoffLabel = formatScheduleTime(cutoffAt);
+    const kickoffLabel = formatScheduleTime(firstKickoffAt);
+    const detailText =
+      resolved.currentRound === 1
+        ? `Deadline 20:00 UK · First match #${firstMatchNumber} at ${kickoffLabel}`
+        : `90 min before first kick-off · Match #${firstMatchNumber} at ${kickoffLabel}`;
+
+    document.querySelectorAll(".round-cutoff").forEach((el) => {
+      (el as HTMLElement).dataset.cutoffAt = cutoffAt;
+      const timeEl = el.querySelector(".round-cutoff__time");
+      if (timeEl) timeEl.textContent = cutoffLabel;
+      const detailEl = el.querySelector(".round-cutoff__detail");
+      if (detailEl) detailEl.textContent = detailText;
+    });
+  }
+
+  document.querySelectorAll(".timeline__round").forEach((el) => {
+    const round = Number((el as HTMLElement).dataset.round);
+    const schedule = getRoundSchedule(round, matches, activeScheduleOptions);
+    if (!schedule) return;
+
+    const cutoffEl = el.querySelector(".timeline__cutoff");
+    if (cutoffEl) {
+      cutoffEl.textContent = `Picks close ${formatScheduleTime(schedule.cutoffAt)}`;
+    }
+    const opensEl = el.querySelector(".timeline__opens");
+    if (opensEl) {
+      opensEl.textContent = `Opens ${formatScheduleTime(schedule.opensAt)}`;
+    }
+  });
+}
+
 function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches: RoundMatch[]) {
   const alive = resolved.players.filter((p) => !p.eliminated && p.name !== "—");
   const eliminated = resolved.players.filter((p) => p.eliminated);
@@ -274,6 +317,8 @@ function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches:
   document.querySelectorAll(".round-cutoff").forEach((el) => {
     el.classList.toggle("round-cutoff--closed", !resolved.picksOpen);
   });
+
+  updateCutoffDisplays(resolved, matches);
 
   const opensEl = document.querySelector("[data-lms-opens-at]");
   if (opensEl && resolved.schedule) {

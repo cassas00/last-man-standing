@@ -46,7 +46,7 @@ function renderFighterCard(
 
   const pickHtml =
     showPick && pickHidden
-      ? `<p class="fighter-card__pick-hidden">Pick hidden until deadline</p>`
+      ? `<p class="fighter-card__pick-hidden">Picked</p>`
       : showPick && pickTeam
       ? `<div class="fighter-card__pick">
           <span class="fighter-card__pick-label">Pick</span>
@@ -123,7 +123,7 @@ function renderPickCell(
   teams: Team[],
 ): string {
   if (pick && !revealed) {
-    return `<span class="pick-badge pick-badge--hidden" title="Hidden until deadline">?</span>`;
+    return `<span class="pick-badge pick-badge--hidden" title="Revealed after deadline">PICKED</span>`;
   }
 
   const team = pick && revealed ? teamById(teams, pick.teamId) : undefined;
@@ -210,7 +210,12 @@ function applyPicksPage(
           : [];
 
         const pickedLabel = !currentRoundPicksRevealed
-          ? "Picks hidden until deadline"
+          ? alive.some((p) => {
+              const pick = p.picks.find((pk) => pk.round === resolved.currentRound);
+              return pick?.teamId === team.id;
+            })
+            ? "Picked"
+            : "Available"
           : pickedBy.length > 0
             ? `Picked by: ${pickedBy.map((p) => p.name).join(", ")}`
             : "No picks yet";

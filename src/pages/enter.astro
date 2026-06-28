@@ -210,8 +210,13 @@ import { gameConfig } from '../lib/game-config';
         const isSelected = slotSelect.value === entry.playerId;
 
         if (!picksRevealed) {
-          return `<div class="roster-card mk-panel ${isSelected ? 'roster-card--mine' : ''}">
+          return `<div class="roster-card mk-panel ${pick ? 'roster-card--taken' : ''} ${isSelected ? 'roster-card--mine' : ''}">
             <span class="roster-card__name">${entry.name}</span>
+            ${
+              pick
+                ? `<span class="roster-card__picked">Picked</span>`
+                : `<span class="roster-card__pending">—</span>`
+            }
           </div>`;
         }
 
@@ -236,7 +241,9 @@ import { gameConfig } from '../lib/game-config';
     } else {
       hintEl.textContent = picksRevealed
         ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted this round.`
-        : 'All picks stay hidden until the deadline. You can still update yours below.';
+        : takenThisRound.size > 0
+          ? `${takenThisRound.size} picked — teams revealed after the deadline.`
+          : 'All picks stay hidden until the deadline. You can still update yours below.';
     }
   }
 
@@ -289,9 +296,9 @@ import { gameConfig } from '../lib/game-config';
       .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
       .map((e) => ({ id: e.playerId, name: e.name }));
 
-    const round1Players = registeredPlayers.filter((p) =>
-      state.entries[p.id]?.picks.some((pick) => pick.round === 1),
-    );
+    const survivorOptions = survivors
+      .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
+      .map((p) => ({ id: p.id, name: p.name }));
 
     const isNewRegistration = currentRound === 1 && !slotSelect.value;
     const registrationClosed =
@@ -311,7 +318,7 @@ import { gameConfig } from '../lib/game-config';
       if (currentRound === 1) {
         populatePlayerOptions(registeredPlayers, 'Register as new player…');
       } else {
-        populatePlayerOptions(round1Players);
+        populatePlayerOptions(survivorOptions);
       }
 
       syncNameField(state);
@@ -325,13 +332,13 @@ import { gameConfig } from '../lib/game-config';
 
       if (!picksOpen) {
         setStatus(resolved.phaseLabel, 'info');
-      } else if (source === 'local' && round1Players.length === 0 && currentRound > 1) {
+      } else if (source === 'local' && survivorOptions.length === 0 && currentRound > 1) {
         setStatus(
           'No players loaded — plain pnpm dev cannot reach the pool API. Run pnpm dev:netlify to use live entries.',
           'info',
         );
         submitBtn.disabled = true;
-      } else if (currentRound > 1 && round1Players.length === 0) {
+      } else if (currentRound > 1 && survivorOptions.length === 0) {
         setStatus('No players registered yet.', 'info');
         submitBtn.disabled = true;
       } else if (currentRound > 1 && survivors.length === 0) {
@@ -588,6 +595,14 @@ import { gameConfig } from '../lib/game-config';
     border: 1px solid var(--team-color);
     color: var(--team-color);
     font-size: 0.9rem;
+  }
+
+  .roster-card__picked {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold);
   }
 
   .roster-card__pending {

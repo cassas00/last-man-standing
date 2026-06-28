@@ -250,21 +250,26 @@ import { rounds } from '../data/rounds';
         const kickoff = match.kickoffAt ? formatScheduleTime(match.kickoffAt) : '';
         const busy = savingMatch === match.matchNumber;
 
+        const knockout = match.round >= 4;
         const resultLabel =
-          result.type === 'draw'
+          result.type === 'draw' && !knockout
             ? 'Draw'
             : result.type === 'winner'
               ? getTeam(result.winnerId)?.short ?? result.winnerId
               : 'Pending';
 
+        const drawBtn = knockout
+          ? ''
+          : `<button type="button" class="result-btn ${result.type === 'draw' ? 'result-btn--active' : ''}" data-action="draw" data-match="${match.matchNumber}" ${busy ? 'disabled' : ''}>Draw</button>`;
+
         const actions = canScore
           ? `<div class="match-admin__actions">
               <button type="button" class="result-btn ${result.type === 'winner' && result.winnerId === match.homeTeamId ? 'result-btn--active' : ''}" data-action="home" data-match="${match.matchNumber}" ${busy ? 'disabled' : ''}>
-                ${home?.short ?? 'Home'} win
+                ${home?.short ?? 'Home'} advances
               </button>
-              <button type="button" class="result-btn ${result.type === 'draw' ? 'result-btn--active' : ''}" data-action="draw" data-match="${match.matchNumber}" ${busy ? 'disabled' : ''}>Draw</button>
+              ${drawBtn}
               <button type="button" class="result-btn ${result.type === 'winner' && result.winnerId === match.awayTeamId ? 'result-btn--active' : ''}" data-action="away" data-match="${match.matchNumber}" ${busy ? 'disabled' : ''}>
-                ${away?.short ?? 'Away'} win
+                ${away?.short ?? 'Away'} advances
               </button>
               <button type="button" class="result-btn result-btn--clear" data-action="clear" data-match="${match.matchNumber}" ${busy ? 'disabled' : ''}>Clear</button>
             </div>`
@@ -454,6 +459,11 @@ import { rounds } from '../data/rounds';
   async function handleResultAction(matchNumber: number, action: string) {
     const match = currentMatches().find((m) => m.matchNumber === matchNumber);
     if (!match?.homeTeamId || !match.awayTeamId) return;
+
+    if (action === 'draw' && match.round >= 4) {
+      setStatus('Knockout matches cannot end in a draw — pick the team that advances.', 'error');
+      return;
+    }
 
     let payload: Parameters<typeof saveMatchResult>[0];
 

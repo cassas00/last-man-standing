@@ -1,5 +1,6 @@
 import type { ResultsState } from "../types/results";
 import { emptyResultsState } from "../types/results";
+import { getLiveMatches } from "./live-matches";
 
 const RESULTS_API = "/api/results";
 const LOGIN_API = "/api/admin/login";
@@ -134,6 +135,11 @@ export async function saveMatchResult(
 
     const state = await readDevResults();
     const key = String(request.matchNumber);
+    const liveMatch = getLiveMatches(state).find((m) => m.matchNumber === request.matchNumber);
+
+    if (request.isDraw && liveMatch && liveMatch.round >= 4) {
+      return { ok: false, error: "Knockout matches cannot end in a draw — pick the team that advances." };
+    }
 
     if (request.clear) {
       delete state.results[key];

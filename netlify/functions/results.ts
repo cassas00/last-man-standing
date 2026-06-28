@@ -34,6 +34,9 @@ function validateUpdate(body: UpdateBody, results: ResultsState): string | null 
   if (body.clear) return null;
 
   if (body.isDraw) {
+    if (match.round >= 4) {
+      return "Knockout matches cannot end in a draw — pick the team that advances.";
+    }
     if (!match.homeTeamId || !match.awayTeamId) {
       return "Cannot mark a draw until both teams are known.";
     }
@@ -74,12 +77,11 @@ export default async (req: Request, _context: Context) => {
       return Response.json({ ok: false, error: "Invalid request body." }, { status: 400 });
     }
 
+    const state = await readResults(store);
     const error = validateUpdate(body, state);
     if (error) {
       return Response.json({ ok: false, error }, { status: 400 });
     }
-
-    const state = await readResults(store);
     const key = String(body.matchNumber);
 
     if (body.clear) {

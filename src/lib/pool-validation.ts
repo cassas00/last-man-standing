@@ -65,9 +65,10 @@ export function getAliveRegisteredPlayers(
   state: PoolState,
   now = Date.now(),
   scheduleOptions: ScheduleOptions = {},
+  liveMatches: RoundMatch[] = matches,
 ): Player[] {
   const players = poolToPlayers(state);
-  const resolved = resolveGameState(players, matches, rounds.length, now, scheduleOptions);
+  const resolved = resolveGameState(players, liveMatches, rounds.length, now, scheduleOptions);
   return resolved.players.filter((p) => !p.eliminated && p.name !== "—");
 }
 
@@ -101,6 +102,7 @@ export function validatePick(
   body: SubmitPickRequest,
   now = Date.now(),
   scheduleOptions: ScheduleOptions = {},
+  liveMatches: RoundMatch[] = matches,
 ): string | null {
   const round = body.round;
   if (!Number.isInteger(round) || round < 1 || round > rounds.length) {
@@ -112,22 +114,22 @@ export function validatePick(
   }
 
   if (!isPickWindowOpen(round, now, scheduleOptions)) {
-    const schedule = getRoundSchedule(round, matches, scheduleOptions);
+    const schedule = getRoundSchedule(round, liveMatches, scheduleOptions);
     return schedule
       ? `Picks for Round ${round} are closed.`
       : "Picks are not open.";
   }
 
   const playingIds = new Set(
-    getTeamsPlayingInRound(round, matches, teams).map((t) => t.id),
+    getTeamsPlayingInRound(round, liveMatches, teams).map((t) => t.id),
   );
   if (!playingIds.has(body.teamId)) {
     return `Pick a team playing in Round ${round}.`;
   }
 
-  const schedule = getRoundSchedule(round, matches, scheduleOptions);
+  const schedule = getRoundSchedule(round, liveMatches, scheduleOptions);
   if (schedule) {
-    const blocked = getTeamsBlockedBeforeCutoff(round, matches, schedule.cutoffAt);
+    const blocked = getTeamsBlockedBeforeCutoff(round, liveMatches, schedule.cutoffAt);
     const currentRoundPick = state.entries[body.playerId]?.picks.find((p) => p.round === round);
     if (blocked.has(body.teamId) && currentRoundPick?.teamId !== body.teamId) {
       return "That team's match kicks off before the pick deadline.";
@@ -158,7 +160,7 @@ export function validatePick(
     return "You must register in Round 1 before picking in later rounds.";
   }
 
-  const alive = getAliveRegisteredPlayers(state, now, scheduleOptions);
+  const alive = getAliveRegisteredPlayers(state, now, scheduleOptions, liveMatches);
   if (!alive.some((p) => p.id === body.playerId)) {
     return "Only surviving players can submit picks.";
   }

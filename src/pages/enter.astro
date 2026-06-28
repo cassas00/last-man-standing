@@ -24,14 +24,14 @@ import { gameConfig } from '../lib/game-config';
         <section class="enter-form-section mk-panel">
           <h2 class="section-title mk-gold-text" id="form-title">Your Pick</h2>
           <form id="enter-form" class="enter-form">
-            <label class="field" id="field-player" hidden>
+            <label class="field" id="field-player">
               <span class="field__label">Player</span>
-              <select name="playerId" id="player-slot" class="field__input">
+              <select name="playerId" id="player-slot" class="field__input" required>
                 <option value="">Select player…</option>
               </select>
             </label>
 
-            <label class="field" id="field-name">
+            <label class="field" id="field-name" hidden>
               <span class="field__label">Your name</span>
               <input
                 type="text"
@@ -70,7 +70,7 @@ import { gameConfig } from '../lib/game-config';
 
 <script>
   import { applyResults } from '../lib/apply-results';
-  import { loadPoolState, submitPick, getMySlotId, resolvePlayerId } from '../lib/pool-store';
+  import { loadPoolState, submitPick } from '../lib/pool-store';
   import { loadResults } from '../lib/results-store';
   import { loadPoolSettings } from '../lib/pool-settings-store';
   import { scheduleOptionsFromSettings } from '../lib/schedule-options';
@@ -160,13 +160,34 @@ import { gameConfig } from '../lib/game-config';
     }
   }
 
-  function populatePlayerOptions(alive: Array<{ id: string; name: string }>) {
-    slotSelect.innerHTML = '<option value="">Select player…</option>';
-    for (const player of alive) {
+  function populatePlayerOptions(
+    players: Array<{ id: string; name: string }>,
+    newPlayerLabel = 'Select player…',
+  ) {
+    slotSelect.innerHTML = `<option value="">${newPlayerLabel}</option>`;
+    for (const player of players) {
       const opt = document.createElement('option');
       opt.value = player.id;
       opt.textContent = player.name;
       slotSelect.appendChild(opt);
+    }
+  }
+
+  function syncNameField(state: import('../types/pool').PoolState) {
+    if (currentRound !== 1) {
+      fieldName.hidden = true;
+      nameInput.required = false;
+      return;
+    }
+
+    const existingId = slotSelect.value;
+    if (existingId && state.entries[existingId]) {
+      fieldName.hidden = true;
+      nameInput.required = false;
+      nameInput.value = state.entries[existingId].name;
+    } else {
+      fieldName.hidden = false;
+      nameInput.required = true;
     }
   }
 
@@ -186,16 +207,16 @@ import { gameConfig } from '../lib/game-config';
     rosterEl.innerHTML = rosterEntries
       .map((entry) => {
         const pick = entry.picks.find((p) => p.round === currentRound);
-        const isMine = getMySlotId() === entry.playerId;
+        const isSelected = slotSelect.value === entry.playerId;
 
         if (!picksRevealed) {
-          return `<div class="roster-card mk-panel ${isMine ? 'roster-card--mine' : ''}">
+          return `<div class="roster-card mk-panel ${isSelected ? 'roster-card--mine' : ''}">
             <span class="roster-card__name">${entry.name}</span>
           </div>`;
         }
 
         const team = pick ? getTeam(pick.teamId) : null;
-        return `<div class="roster-card mk-panel ${pick ? 'roster-card--taken' : ''} ${isMine ? 'roster-card--mine' : ''}">
+        return `<div class="roster-card mk-panel ${pick ? 'roster-card--taken' : ''} ${isSelected ? 'roster-card--mine' : ''}">
           <span class="roster-card__name">${entry.name}</span>
           ${
             team
@@ -207,9 +228,16 @@ import { gameConfig } from '../lib/game-config';
       .join('');
 
     teamLabel.textContent = `Round ${currentRound} team`;
-    document.getElementById('team-hint')!.textContent = picksRevealed
-      ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted this round.`
-      : 'All picks stay hidden until the deadline. You can still update yours below.';
+    const hintEl = document.getElementById('team-hint')!;
+    if (currentRound >= 4) {
+      hintEl.textContent = picksRevealed
+        ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted. Only Round of 32 teams you have not picked before.`
+        : "Pick a Round of 32 team you have not used in an earlier round.";
+    } else {
+      hintEl.textContent = picksRevealed
+        ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted this round.`
+        : 'All picks stay hidden until the deadline. You can still update yours below.';
+    }
   }
 
   async function refresh(savedState?: import('../types/pool').PoolState) {
@@ -233,18 +261,14 @@ import { gameConfig } from '../lib/game-config';
 
     if (currentRound === 1) {
       pageSub.textContent =
-        'Enter your name and lock in your Round 1 team.';
-      fieldName.hidden = false;
-      fieldPlayer.hidden = true;
-      nameInput.required = true;
+        'Select your name from the list or register as a new player, then lock in your Round 1 team.';
+      fieldPlayer.hidden = false;
       slotSelect.required = false;
       formTitle.textContent = 'Register';
     } else {
       pageSub.textContent =
-        `Submit your Round ${currentRound} pick. Select a player and a team — you can't reuse a team from an earlier round.`;
-      fieldName.hidden = true;
+        `Submit your Round ${currentRound} pick. Select your name and a team — you can't reuse a team from an earlier round.`;
       fieldPlayer.hidden = false;
-      nameInput.required = false;
       slotSelect.required = true;
       formTitle.textContent = `Round ${currentRound} Pick`;
     }
@@ -259,17 +283,21 @@ import { gameConfig } from '../lib/game-config';
     noteEl.textContent =
       source === 'local'
         ? 'Dev mode: saved to this browser only. Use pnpm dev:netlify for shared storage.'
-        : 'Picks are saved for everyone and stay hidden until the deadline. Use the same device to update yours.';
+        : 'Picks are saved for everyone and stay hidden until the deadline. Select your name each time you submit.';
 
-    const mySlot = getMySlotId();
-    const round1PlayerId = resolvePlayerId(state, 1, mySlot);
-    const isRegistered = !!(mySlot && state.entries[mySlot]);
-    const registrationClosed = !isRegistrationOpen(Date.now(), activeScheduleOptions) && !isRegistered;
+    const registeredPlayers = Object.values(state.entries)
+      .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
+      .map((e) => ({ id: e.playerId, name: e.name }));
 
-    const activePlayerId =
-      currentRound === 1
-        ? round1PlayerId ?? ''
-        : slotSelect.value || mySlot || '';
+    const round1Players = registeredPlayers.filter((p) =>
+      state.entries[p.id]?.picks.some((pick) => pick.round === 1),
+    );
+
+    const isNewRegistration = currentRound === 1 && !slotSelect.value;
+    const registrationClosed =
+      !isRegistrationOpen(Date.now(), activeScheduleOptions) && isNewRegistration;
+
+    const activePlayerId = slotSelect.value || '';
 
     if (registrationClosed) {
       formSection.hidden = true;
@@ -280,14 +308,13 @@ import { gameConfig } from '../lib/game-config';
     } else {
       formSection.hidden = false;
 
-      if (currentRound > 1) populatePlayerOptions(survivors);
+      if (currentRound === 1) {
+        populatePlayerOptions(registeredPlayers, 'Register as new player…');
+      } else {
+        populatePlayerOptions(round1Players);
+      }
 
-      if (currentRound === 1 && round1PlayerId && state.entries[round1PlayerId]) {
-        nameInput.value = state.entries[round1PlayerId].name;
-      }
-      if (currentRound > 1 && mySlot && state.entries[mySlot]) {
-        slotSelect.value = mySlot;
-      }
+      syncNameField(state);
 
       populateTeamOptions(state, activePlayerId, liveMatches);
 
@@ -298,6 +325,15 @@ import { gameConfig } from '../lib/game-config';
 
       if (!picksOpen) {
         setStatus(resolved.phaseLabel, 'info');
+      } else if (source === 'local' && round1Players.length === 0 && currentRound > 1) {
+        setStatus(
+          'No players loaded — plain pnpm dev cannot reach the pool API. Run pnpm dev:netlify to use live entries.',
+          'info',
+        );
+        submitBtn.disabled = true;
+      } else if (currentRound > 1 && round1Players.length === 0) {
+        setStatus('No players registered yet.', 'info');
+        submitBtn.disabled = true;
       } else if (currentRound > 1 && survivors.length === 0) {
         setStatus('No surviving registered players yet.', 'info');
         submitBtn.disabled = true;
@@ -310,10 +346,7 @@ import { gameConfig } from '../lib/game-config';
     renderRoster(state, new Set(survivors.map((p) => p.id)), liveMatches);
 
     if (!registrationClosed) {
-      const checkId =
-        currentRound === 1
-          ? round1PlayerId
-          : slotSelect.value || mySlot;
+      const checkId = slotSelect.value;
       const existingPick = checkId
         ? state.entries[checkId]?.picks.find((p) => p.round === currentRound)
         : null;
@@ -323,6 +356,7 @@ import { gameConfig } from '../lib/game-config';
 
   slotSelect.addEventListener('change', async () => {
     const [{ state }, results] = await Promise.all([loadPoolState(), loadResults()]);
+    syncNameField(state);
     populateTeamOptions(state, slotSelect.value, applyResults(matches, results));
   });
 
@@ -331,24 +365,32 @@ import { gameConfig } from '../lib/game-config';
     if (!picksOpen) return;
 
     const { state } = await loadPoolState();
-    const mySlot = getMySlotId();
-    const playerId =
-      currentRound === 1
-        ? resolvePlayerId(state, 1, mySlot)
-        : slotSelect.value || mySlot;
+
+    let playerId = slotSelect.value;
+    if (currentRound === 1 && !playerId) {
+      playerId = crypto.randomUUID();
+    }
 
     if (!playerId) {
-      setStatus('Select a player.', 'error');
+      setStatus('Select your name from the list.', 'error');
       return;
     }
     if (!teamSelect.value) return;
+
+    if (currentRound === 1 && !slotSelect.value) {
+      const name = nameInput.value.trim();
+      if (name.length < 2) {
+        setStatus('Enter your name (at least 2 characters).', 'error');
+        return;
+      }
+    }
 
     submitBtn.disabled = true;
     const result = await submitPick({
       playerId,
       round: currentRound,
       teamId: teamSelect.value,
-      name: currentRound === 1 ? nameInput.value.trim() : undefined,
+      name: currentRound === 1 && !slotSelect.value ? nameInput.value.trim() : undefined,
     });
 
     if (result.ok) {

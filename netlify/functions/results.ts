@@ -1,6 +1,6 @@
 import type { Config, Context } from "@netlify/functions";
 import { getStore } from "@netlify/blobs";
-import { matches } from "../../src/data/fixtures";
+import { getLiveMatches } from "../../src/lib/live-matches";
 import type { ResultsState } from "../../src/types/results";
 import { emptyResultsState } from "../../src/types/results";
 import { getAuthHeader, verifyAdminToken } from "../lib/admin-auth";
@@ -22,12 +22,13 @@ async function readResults(store: ReturnType<typeof getStore>): Promise<ResultsS
   return { version: 1, results: data.results ?? {}, updatedAt: data.updatedAt };
 }
 
-function validateUpdate(body: UpdateBody): string | null {
+function validateUpdate(body: UpdateBody, results: ResultsState): string | null {
   if (!Number.isInteger(body.matchNumber) || body.matchNumber < 1) {
     return "Invalid match number.";
   }
 
-  const match = matches.find((m) => m.matchNumber === body.matchNumber);
+  const liveMatches = getLiveMatches(results);
+  const match = liveMatches.find((m) => m.matchNumber === body.matchNumber);
   if (!match) return "Match not found.";
 
   if (body.clear) return null;
@@ -73,7 +74,7 @@ export default async (req: Request, _context: Context) => {
       return Response.json({ ok: false, error: "Invalid request body." }, { status: 400 });
     }
 
-    const error = validateUpdate(body);
+    const error = validateUpdate(body, state);
     if (error) {
       return Response.json({ ok: false, error }, { status: 400 });
     }

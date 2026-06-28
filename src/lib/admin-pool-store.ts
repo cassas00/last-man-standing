@@ -5,6 +5,10 @@ import {
   type AdminSetPickRequest,
 } from "./admin-pool";
 import { addPlayerToState, applyPickToState } from "./pool-mutations";
+import { getLiveMatches } from "./live-matches";
+import { loadPoolSettings } from "./pool-settings-store";
+import { loadResults } from "./results-store";
+import { scheduleOptionsFromSettings } from "./schedule-options";
 import type { PoolState } from "../types/pool";
 import { emptyPoolState, migratePoolState } from "../types/pool";
 import { getAdminToken } from "./results-store";
@@ -55,8 +59,14 @@ export async function adminAddPlayer(
       return { ok: false, error: "Could not add player. Use pnpm dev:netlify for shared storage." };
     }
 
-    const state = readDevPool();
-    const error = validateAdminAddPlayer(state, request);
+    const [state, settings, results] = await Promise.all([
+      Promise.resolve(readDevPool()),
+      loadPoolSettings(),
+      loadResults(),
+    ]);
+    const scheduleOptions = scheduleOptionsFromSettings(settings);
+    const liveMatches = getLiveMatches(results);
+    const error = validateAdminAddPlayer(state, request, scheduleOptions, liveMatches);
     if (error) return { ok: false, error };
 
     const playerId = addPlayerToState(state, request.name);
@@ -98,8 +108,14 @@ export async function adminSetPick(
       return { ok: false, error: "Could not save pick. Use pnpm dev:netlify for shared storage." };
     }
 
-    const state = readDevPool();
-    const error = validateAdminSetPick(state, request);
+    const [state, settings, results] = await Promise.all([
+      Promise.resolve(readDevPool()),
+      loadPoolSettings(),
+      loadResults(),
+    ]);
+    const scheduleOptions = scheduleOptionsFromSettings(settings);
+    const liveMatches = getLiveMatches(results);
+    const error = validateAdminSetPick(state, request, scheduleOptions, liveMatches);
     if (error) return { ok: false, error };
 
     applyPickToState(state, request);

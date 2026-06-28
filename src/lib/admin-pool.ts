@@ -72,6 +72,7 @@ export function validateAdminAddPlayer(
   state: PoolState,
   body: AdminAddPlayerRequest,
   scheduleOptions: ScheduleOptions = {},
+  liveMatches: RoundMatch[] = matches,
 ): string | null {
   const nameError = validateName(body.name);
   if (nameError) return nameError;
@@ -82,13 +83,14 @@ export function validateAdminAddPlayer(
     return "Provide both round and team to assign a pick, or leave both empty to add the player only.";
   }
 
-  return validateTeamPick(state, "__new__", body.round, body.teamId, matches, teams, scheduleOptions);
+  return validateTeamPick(state, "__new__", body.round, body.teamId, liveMatches, teams, scheduleOptions);
 }
 
 export function validateAdminSetPick(
   state: PoolState,
   body: AdminSetPickRequest,
   scheduleOptions: ScheduleOptions = {},
+  liveMatches: RoundMatch[] = matches,
 ): string | null {
   if (!body.playerId || typeof body.playerId !== "string") {
     return "Invalid player.";
@@ -103,7 +105,7 @@ export function validateAdminSetPick(
     body.playerId,
     body.round,
     body.teamId,
-    matches,
+    liveMatches,
     teams,
     scheduleOptions,
   );

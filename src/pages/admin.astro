@@ -288,7 +288,7 @@ import { rounds } from '../data/rounds';
       poolState,
       playerId,
       round,
-      baseMatches,
+      currentMatches(),
       allTeams,
       scheduleOptions(),
     );
@@ -430,17 +430,18 @@ import { rounds } from '../data/rounds';
   function applyLocalMatchResult(matchNumber: number, action: string) {
     const key = String(matchNumber);
     const nextResults = { ...resultsState.results };
+    const liveMatch = currentMatches().find((m) => m.matchNumber === matchNumber);
 
     if (action === 'clear') {
       delete nextResults[key];
     } else if (action === 'draw') {
       nextResults[key] = { isDraw: true };
-    } else {
-      const match = baseMatches.find((m) => m.matchNumber === matchNumber);
-      if (!match) return;
-      const winnerId = action === 'home' ? match.homeTeamId : match.awayTeamId;
+    } else if (liveMatch) {
+      const winnerId = action === 'home' ? liveMatch.homeTeamId : liveMatch.awayTeamId;
       if (!winnerId) return;
       nextResults[key] = { winnerId };
+    } else {
+      return;
     }
 
     resultsState = {
@@ -451,7 +452,7 @@ import { rounds } from '../data/rounds';
   }
 
   async function handleResultAction(matchNumber: number, action: string) {
-    const match = baseMatches.find((m) => m.matchNumber === matchNumber);
+    const match = currentMatches().find((m) => m.matchNumber === matchNumber);
     if (!match?.homeTeamId || !match.awayTeamId) return;
 
     let payload: Parameters<typeof saveMatchResult>[0];

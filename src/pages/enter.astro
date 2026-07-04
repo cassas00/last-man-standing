@@ -234,7 +234,11 @@ import { gameConfig } from '../lib/game-config';
 
     teamLabel.textContent = `Round ${currentRound} team`;
     const hintEl = document.getElementById('team-hint')!;
-    if (currentRound >= 4) {
+    if (currentRound >= 5) {
+      hintEl.textContent = picksRevealed
+        ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted. Only Round of 16 teams you have not picked before.`
+        : "Pick a Round of 16 team you have not used in an earlier round.";
+    } else if (currentRound >= 4) {
       hintEl.textContent = picksRevealed
         ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted. Only Round of 32 teams you have not picked before.`
         : "Pick a Round of 32 team you have not used in an earlier round.";

@@ -129,14 +129,14 @@ import { rounds } from '../data/rounds';
 <script>
   import { gameConfig } from '../lib/game-config';
   import { getTeam } from '../data/game';
-  import { getActiveRound } from '../utils/engine';
+  import { getActiveRound, resolveGameState } from '../utils/engine';
   import { formatScheduleTime, getRoundSchedule, getTeamsBlockedBeforeCutoff, getNextDayMidnightLocal, getUkTimeOnKickoffDay } from '../utils/schedule';
   import { applyResults } from '../lib/apply-results';
   import type { ResultsState } from '../types/results';
   import type { RoundMatch } from '../data/game';
   import { loadPoolSettings, savePrizeAmount, saveRoundExtension, clearRoundExtension } from '../lib/pool-settings-store';
   import { scheduleOptionsFromSettings } from '../lib/schedule-options';
-  import { getAvailableTeamsForPlayer } from '../lib/pool-validation';
+  import { getTeamsPlayingInRound } from '../utils/engine';
   import { adminAddPlayer, adminSetPick } from '../lib/admin-pool-store';
   import { loadPoolState } from '../lib/pool-store';
   import type { PoolState } from '../types/pool';
@@ -289,14 +289,13 @@ import { rounds } from '../data/rounds';
   }
 
   function teamsForPlayer(round: number, playerId: string) {
-    return getAvailableTeamsForPlayer(
-      poolState,
-      playerId,
-      round,
-      currentMatches(),
-      allTeams,
-      scheduleOptions(),
-    );
+    const playing = getTeamsPlayingInRound(round, currentMatches(), allTeams);
+    const currentPick = poolState.entries[playerId]?.picks.find((p) => p.round === round);
+    if (currentPick && !playing.some((t) => t.id === currentPick.teamId)) {
+      const team = allTeams.find((t) => t.id === currentPick.teamId);
+      if (team) return [...playing, team];
+    }
+    return playing;
   }
 
   function populateTeamSelect(select: HTMLSelectElement, round: number, playerId = '__new__', selectedId = '') {
@@ -363,17 +362,37 @@ import { rounds } from '../data/rounds';
     return getUkTimeOnKickoffDay(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}T12:00:00Z`, hh, mi);
   }
 
+  function alivePlayerIds(): Set<string> {
+    const players = Object.values(poolState.entries).map((entry) => ({
+      id: entry.playerId,
+      name: entry.name,
+      picks: entry.picks.map((p) => ({ round: p.round, teamId: p.teamId })),
+    }));
+    const resolved = resolveGameState(
+      players,
+      currentMatches(),
+      gameConfig.totalRounds,
+      Date.now(),
+      scheduleOptions(),
+    );
+    return new Set(resolved.players.filter((p) => !p.eliminated).map((p) => p.id));
+  }
+
   function renderPlayers() {
     const round = Number(roundFilter.value);
     addPlayerRoundLabel.textContent = String(round);
     populateTeamSelect(newPlayerTeam, round);
 
-    const entries = Object.values(poolState.entries).sort((a, b) =>
-      a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }),
-    );
+    const aliveIds = round > 1 ? alivePlayerIds() : null;
+    const entries = Object.values(poolState.entries)
+      .filter((entry) => !aliveIds || aliveIds.has(entry.playerId))
+      .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
 
     if (entries.length === 0) {
-      playerAdminList.innerHTML = '<p class="players-admin__empty">No players registered yet.</p>';
+      playerAdminList.innerHTML =
+        round > 1
+          ? '<p class="players-admin__empty">No surviving players for this round.</p>'
+          : '<p class="players-admin__empty">No players registered yet.</p>';
       return;
     }
 

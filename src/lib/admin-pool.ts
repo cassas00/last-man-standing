@@ -3,12 +3,7 @@ import { matches, teams } from "../data/game";
 import { rounds } from "../data/rounds";
 import type { PoolState } from "../types/pool";
 import { getTeamsPlayingInRound } from "../utils/engine";
-import {
-  getRoundSchedule,
-  getTeamsBlockedBeforeCutoff,
-  type ScheduleOptions,
-} from "../utils/schedule";
-import { getTeamsUsedByPlayer } from "./pool-validation";
+import type { ScheduleOptions } from "../utils/schedule";
 
 export interface AdminAddPlayerRequest {
   name: string;
@@ -47,22 +42,6 @@ function validateTeamPick(
   );
   if (!playingIds.has(teamId)) {
     return `Pick a team playing in Round ${round}.`;
-  }
-
-  const schedule = getRoundSchedule(round, allMatches, scheduleOptions);
-  if (schedule) {
-    const blocked = getTeamsBlockedBeforeCutoff(round, allMatches, schedule.cutoffAt);
-    const currentRoundPick = state.entries[playerId]?.picks.find((p) => p.round === round);
-    if (blocked.has(teamId) && currentRoundPick?.teamId !== teamId) {
-      return "That team's match kicks off before the pick deadline.";
-    }
-  }
-
-  const usedByPlayer = getTeamsUsedByPlayer(state, playerId);
-  const currentRoundPick = state.entries[playerId]?.picks.find((p) => p.round === round);
-
-  if (usedByPlayer.has(teamId) && currentRoundPick?.teamId !== teamId) {
-    return "That player has already used this team in a previous round.";
   }
 
   return null;

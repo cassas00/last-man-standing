@@ -404,7 +404,7 @@ import { rounds } from '../data/rounds';
     addPlayerRoundLabel.textContent = String(round);
     populateTeamSelect(newPlayerTeam, round);
 
-    const aliveIds = round > 1 ? eligiblePlayerIds(round) : null;
+    const aliveIds = round > 1 && round !== 8 ? eligiblePlayerIds(round) : null;
     const entries = Object.values(poolState.entries)
       .filter((entry) => !aliveIds || aliveIds.has(entry.playerId))
       .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));

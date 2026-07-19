@@ -134,7 +134,7 @@ const knockout: KnockoutFixture[] = [
   [100, 6, "Match 95 Winner", "Match 96 Winner", "QF"],
   [101, 7, "Match 97 Winner", "Match 98 Winner", "SF"],
   [102, 7, "Match 99 Winner", "Match 100 Winner", "SF"],
-  // The LMS continues through both the bronze match and the World Cup Final.
+  // LMS continues through the bronze match (rollover) then the World Cup Final.
   [103, 8, "Match 101 Loser", "Match 102 Loser", "3rd Place"],
   [104, 9, "Match 101 Winner", "Match 102 Winner", "Final"],
 ];

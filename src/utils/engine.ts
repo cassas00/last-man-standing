@@ -146,6 +146,18 @@ export function computePickOutcome(
   return match.winnerId === pick.teamId;
 }
 
+/** 3rd-place rollover: once Round 8 opens, prior eliminations are wiped. */
+export const ROLLOVER_ROUND = 8;
+
+export function isRolloverActive(
+  matches: RoundMatch[],
+  now = Date.now(),
+  scheduleOptions: ScheduleOptions = {},
+): boolean {
+  const schedule = getRoundSchedule(ROLLOVER_ROUND, matches, scheduleOptions);
+  return !!schedule && now >= new Date(schedule.opensAt).getTime();
+}
+
 export function derivePlayers(
   players: Player[],
   matches: RoundMatch[],
@@ -153,6 +165,9 @@ export function derivePlayers(
   now = Date.now(),
   scheduleOptions: ScheduleOptions = {},
 ): ResolvedPlayer[] {
+  const rollover = isRolloverActive(matches, now, scheduleOptions);
+  const startRound = rollover ? ROLLOVER_ROUND : 1;
+
   return players.map((player) => {
     let eliminated = false;
     let eliminatedRound: number | undefined;
@@ -161,7 +176,7 @@ export function derivePlayers(
       won: computePickOutcome(pick, pick.round, matches),
     }));
 
-    for (let round = 1; round <= evaluatedRound; round++) {
+    for (let round = startRound; round <= evaluatedRound; round++) {
       if (eliminated) break;
 
       const schedule = getRoundSchedule(round, matches, scheduleOptions);

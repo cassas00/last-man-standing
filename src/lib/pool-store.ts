@@ -99,5 +99,6 @@ export {
   getTeamsUsedByPlayer,
   getAvailableTeamsForPlayer,
   getAliveRegisteredPlayers,
+  isRolloverRound,
   isFinalRound,
 } from "./pool-validation";

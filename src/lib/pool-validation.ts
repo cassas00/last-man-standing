@@ -72,6 +72,11 @@ export function getAliveRegisteredPlayers(
   return resolved.players.filter((p) => !p.eliminated && p.name !== "—");
 }
 
+/** 3rd-place rollover resets the field — team reuse does not apply. */
+export function isRolloverRound(round: number): boolean {
+  return round === 8;
+}
+
 /** The World Cup Final allows either finalist even if the player used them earlier. */
 export function isFinalRound(round: number): boolean {
   return round === rounds.length;
@@ -88,7 +93,7 @@ export function getAvailableTeamsForPlayer(
   const playing = getTeamsPlayingInRound(round, allMatches, allTeams);
   const usedByPlayer = getTeamsUsedByPlayer(state, playerId);
   const currentRoundPick = state.entries[playerId]?.picks.find((p) => p.round === round);
-  const waiveReuse = isFinalRound(round);
+  const waiveReuse = isRolloverRound(round) || isFinalRound(round);
 
   const schedule = getRoundSchedule(round, allMatches, scheduleOptions);
   const blocked = schedule
@@ -147,6 +152,7 @@ export function validatePick(
   const currentRoundPick = state.entries[body.playerId]?.picks.find((p) => p.round === round);
 
   if (
+    !isRolloverRound(round) &&
     !isFinalRound(round) &&
     usedByPlayer.has(body.teamId) &&
     currentRoundPick?.teamId !== body.teamId
@@ -169,6 +175,11 @@ export function validatePick(
 
   if (!existing) {
     return "You must register in Round 1 before picking in later rounds.";
+  }
+
+  // 3rd-place rollover: every registered player can pick again.
+  if (isRolloverRound(round)) {
+    return null;
   }
 
   const alive = getAliveRegisteredPlayers(state, now, scheduleOptions, liveMatches);

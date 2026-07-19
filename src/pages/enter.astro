@@ -200,7 +200,7 @@ import { gameConfig } from '../lib/game-config';
     const takenThisRound = getTeamsTakenInRound(state, currentRound);
 
     const entries = Object.values(state.entries);
-    const rosterEntries = currentRound === 1
+    const rosterEntries = currentRound === 1 || currentRound === 8
       ? entries
       : entries.filter((e) => aliveIds.has(e.playerId));
 
@@ -238,6 +238,10 @@ import { gameConfig } from '../lib/game-config';
       hintEl.textContent = picksRevealed
         ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted. Either finalist may be picked, including a team used earlier.`
         : 'Pick either finalist. Team reuse is allowed for the Final.';
+    } else if (currentRound === 8) {
+      hintEl.textContent = picksRevealed
+        ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted. Rollover — team reuse allowed.`
+        : 'Rollover round — pick either side. Team reuse is allowed.';
     } else if (currentRound >= 5) {
       hintEl.textContent = picksRevealed
         ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted. Only teams you have not picked before.`
@@ -275,9 +279,11 @@ import { gameConfig } from '../lib/game-config';
     rosterTitle.textContent =
       currentRound === 1
         ? `Players (${Object.keys(state.entries).length})`
-        : currentRound === totalRounds
-          ? `Finalists (${survivors.length})`
-          : 'Survivors';
+        : currentRound === 8
+          ? `Rollover (${Object.keys(state.entries).length})`
+          : currentRound === totalRounds
+            ? `Finalists (${survivors.length})`
+            : 'Survivors';
 
     if (currentRound === 1) {
       pageSub.textContent =
@@ -285,6 +291,12 @@ import { gameConfig } from '../lib/game-config';
       fieldPlayer.hidden = false;
       slotSelect.required = false;
       formTitle.textContent = 'Register';
+    } else if (currentRound === 8) {
+      pageSub.textContent =
+        'Rollover — everyone is back in for the 3rd-place play-off. Pick either side (team reuse allowed).';
+      fieldPlayer.hidden = false;
+      slotSelect.required = true;
+      formTitle.textContent = 'Rollover Pick';
     } else if (currentRound === totalRounds) {
       pageSub.textContent =
         'The third-place play-off is complete. Surviving players can pick either finalist, including a team used earlier.';
@@ -336,6 +348,8 @@ import { gameConfig } from '../lib/game-config';
 
       if (currentRound === 1) {
         populatePlayerOptions(registeredPlayers, 'Register as new player…');
+      } else if (currentRound === 8) {
+        populatePlayerOptions(registeredPlayers);
       } else {
         populatePlayerOptions(survivorOptions);
       }
@@ -357,14 +371,19 @@ import { gameConfig } from '../lib/game-config';
           'info',
         );
         submitBtn.disabled = true;
-      } else if (currentRound > 1 && survivorOptions.length === 0) {
+      } else if (currentRound === 8 && registeredPlayers.length === 0) {
+        setStatus('No players registered yet.', 'info');
+        submitBtn.disabled = true;
+      } else if (currentRound > 1 && currentRound !== 8 && survivorOptions.length === 0) {
         setStatus('No surviving registered players for this round.', 'info');
         submitBtn.disabled = true;
       } else {
         setStatus(
-          currentRound === totalRounds
-            ? 'Final picks are open for surviving players.'
-            : `Round ${currentRound} picks are open.`,
+          currentRound === 8
+            ? 'Rollover — picks are open for everyone.'
+            : currentRound === totalRounds
+              ? 'Final picks are open for third-place survivors.'
+              : `Round ${currentRound} picks are open.`,
           'ok',
         );
         submitBtn.disabled = false;

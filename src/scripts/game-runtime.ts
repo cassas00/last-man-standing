@@ -351,9 +351,11 @@ function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches:
     const textEl = enterCta.querySelector("[data-lms-enter-cta-text]");
     if (textEl) {
       textEl.textContent =
-        resolved.currentRound === config.totalRounds
-          ? "Final picks are open to surviving players until 90 minutes before kick-off."
-          : `Round ${resolved.currentRound} picks are open — submit your team before the deadline.`;
+        resolved.currentRound === 8
+          ? "Rollover — everyone picks again for the 3rd-place play-off."
+          : resolved.currentRound === config.totalRounds
+            ? "Final picks are open to 3rd-place survivors until 90 minutes before kick-off."
+            : `Round ${resolved.currentRound} picks are open — submit your team before the deadline.`;
     }
   }
 

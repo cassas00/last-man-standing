@@ -13,7 +13,7 @@ export const rounds: RoundInfo[] = [
   { round: 5, name: "Round of 16", dates: "Jul 4–7", matchCount: 8 },
   { round: 6, name: "Quarter-Finals", dates: "Jul 9–11", matchCount: 4 },
   { round: 7, name: "Semi-Finals", dates: "Jul 14–15", matchCount: 2 },
-  { round: 8, name: "3rd Place Play-Off", dates: "Jul 18", matchCount: 1 },
+  { round: 8, name: "3rd Place (Rollover)", dates: "Jul 18", matchCount: 1 },
   { round: 9, name: "Final", dates: "Jul 19", matchCount: 1 },
 ];
 

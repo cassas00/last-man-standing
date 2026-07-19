@@ -94,4 +94,10 @@ export function isSlotTaken(state: PoolState, playerId: string): boolean {
   return playerId in state.entries;
 }
 
-export { getTeamsTakenInRound, getTeamsUsedByPlayer, getAvailableTeamsForPlayer, getAliveRegisteredPlayers } from "./pool-validation";
+export {
+  getTeamsTakenInRound,
+  getTeamsUsedByPlayer,
+  getAvailableTeamsForPlayer,
+  getAliveRegisteredPlayers,
+  isFinalRound,
+} from "./pool-validation";

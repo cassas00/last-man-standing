@@ -5,6 +5,7 @@ function resolveSlot(
   label: string,
   matchNumber: number,
   winners: Map<number, string | undefined>,
+  matchesByNumber: Map<number, RoundMatch>,
 ): string | undefined {
   const winnerMatch = label.match(/^Group ([A-L]) Winner$/);
   if (winnerMatch) return groupFinisher(winnerMatch[1], 1);
@@ -20,6 +21,18 @@ function resolveSlot(
   const matchWin = label.match(/^Match (\d+) Winner$/);
   if (matchWin) return winners.get(Number(matchWin[1]));
 
+  const matchLose = label.match(/^Match (\d+) Loser$/);
+  if (matchLose) {
+    const src = Number(matchLose[1]);
+    const winnerId = winners.get(src);
+    const sourceMatch = matchesByNumber.get(src);
+    if (!winnerId || !sourceMatch) return undefined;
+    const { homeTeamId, awayTeamId } = sourceMatch;
+    if (homeTeamId && awayTeamId) {
+      return homeTeamId === winnerId ? awayTeamId : homeTeamId;
+    }
+  }
+
   return undefined;
 }
 
@@ -27,6 +40,7 @@ function resolveSlot(
 export function resolveBracket(matches: RoundMatch[]): RoundMatch[] {
   const winners = new Map<number, string | undefined>();
   const resolvedByNumber = new Map<number, RoundMatch>();
+  const matchesByNumber = new Map(matches.map((m) => [m.matchNumber, m]));
 
   for (const match of matches) {
     if (match.winnerId) winners.set(match.matchNumber, match.winnerId);
@@ -42,10 +56,10 @@ export function resolveBracket(matches: RoundMatch[]): RoundMatch[] {
     let awayTeamId = match.awayTeamId;
 
     if (!homeTeamId && match.homeLabel) {
-      homeTeamId = resolveSlot(match.homeLabel, match.matchNumber, winners);
+      homeTeamId = resolveSlot(match.homeLabel, match.matchNumber, winners, matchesByNumber);
     }
     if (!awayTeamId && match.awayLabel) {
-      awayTeamId = resolveSlot(match.awayLabel, match.matchNumber, winners);
+      awayTeamId = resolveSlot(match.awayLabel, match.matchNumber, winners, matchesByNumber);
     }
 
     const resolved = {
@@ -55,6 +69,7 @@ export function resolveBracket(matches: RoundMatch[]): RoundMatch[] {
     };
 
     resolvedByNumber.set(match.matchNumber, resolved);
+    matchesByNumber.set(match.matchNumber, resolved);
     if (resolved.winnerId) winners.set(resolved.matchNumber, resolved.winnerId);
   }
 

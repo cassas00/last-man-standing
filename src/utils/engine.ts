@@ -240,6 +240,19 @@ export function getAlivePlayers(resolved: ResolvedGame): ResolvedPlayer[] {
   return resolved.players.filter((p) => !p.eliminated);
 }
 
+export function getAliveRegisteredPlayers(resolved: ResolvedGame): ResolvedPlayer[] {
+  return resolved.players.filter((p) => !p.eliminated && p.name !== "—");
+}
+
+export function getFinalTwo(resolved: ResolvedGame): [ResolvedPlayer, ResolvedPlayer] | null {
+  const alive = getAliveRegisteredPlayers(resolved);
+  if (alive.length !== 2) return null;
+  const sorted = [...alive].sort((a, b) =>
+    a.name.localeCompare(b.name, "en", { sensitivity: "base" }),
+  );
+  return [sorted[0], sorted[1]];
+}
+
 export function getEliminatedPlayers(resolved: ResolvedGame): ResolvedPlayer[] {
   return resolved.players.filter((p) => p.eliminated);
 }

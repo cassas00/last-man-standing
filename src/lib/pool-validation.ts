@@ -72,6 +72,11 @@ export function getAliveRegisteredPlayers(
   return resolved.players.filter((p) => !p.eliminated && p.name !== "—");
 }
 
+/** The World Cup Final allows either finalist even if the player used them earlier. */
+export function isFinalRound(round: number): boolean {
+  return round === rounds.length;
+}
+
 export function getAvailableTeamsForPlayer(
   state: PoolState,
   playerId: string,
@@ -83,6 +88,7 @@ export function getAvailableTeamsForPlayer(
   const playing = getTeamsPlayingInRound(round, allMatches, allTeams);
   const usedByPlayer = getTeamsUsedByPlayer(state, playerId);
   const currentRoundPick = state.entries[playerId]?.picks.find((p) => p.round === round);
+  const waiveReuse = isFinalRound(round);
 
   const schedule = getRoundSchedule(round, allMatches, scheduleOptions);
   const blocked = schedule
@@ -92,6 +98,7 @@ export function getAvailableTeamsForPlayer(
   return playing
     .filter((team) => {
       if (blocked.has(team.id) && currentRoundPick?.teamId !== team.id) return false;
+      if (waiveReuse) return true;
       return !usedByPlayer.has(team.id) || currentRoundPick?.teamId === team.id;
     })
     .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
@@ -139,7 +146,11 @@ export function validatePick(
   const usedByPlayer = getTeamsUsedByPlayer(state, body.playerId);
   const currentRoundPick = state.entries[body.playerId]?.picks.find((p) => p.round === round);
 
-  if (usedByPlayer.has(body.teamId) && currentRoundPick?.teamId !== body.teamId) {
+  if (
+    !isFinalRound(round) &&
+    usedByPlayer.has(body.teamId) &&
+    currentRoundPick?.teamId !== body.teamId
+  ) {
     return "You cannot pick the same team twice.";
   }
 

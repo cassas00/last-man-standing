@@ -4,18 +4,23 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import PrizeBanner from '../components/PrizeBanner.astro';
 import FighterCard from '../components/FighterCard.astro';
+import FinalDuel from '../components/FinalDuel.astro';
 import RoundTimeline from '../components/RoundTimeline.astro';
 import {
   game,
   getResolvedGame,
   getAlivePlayers,
   getEliminatedPlayers,
+  getFinalTwo,
 } from '../data/game';
+import { getRoundInfo } from '../data/rounds';
 import { areRoundPicksRevealed } from '../utils/schedule';
 
 const resolved = getResolvedGame();
 const picksRevealed = areRoundPicksRevealed(resolved.currentRound, game.matches);
 const alive = getAlivePlayers(resolved);
+const finalTwo = getFinalTwo(resolved);
+const roundInfo = getRoundInfo(resolved.currentRound);
 const eliminated = getEliminatedPlayers(resolved).sort(
   (a, b) => (b.eliminatedRound ?? 0) - (a.eliminatedRound ?? 0)
 );
@@ -53,16 +58,30 @@ const eliminated = getEliminatedPlayers(resolved).sort(
 
       <div class="standings-grid">
         <section>
-          <h2 class="section-title status-alive">⚔ Survivors</h2>
-          <div class="fighter-grid" id="lms-survivors">
-            {alive.map((player) => (
-              <FighterCard
-                player={player}
-                showPick
+          <div id="lms-survivors-area" class="survivors-area" data-survivors-title="⚔ Survivors" data-survivors-title-class="section-title status-alive">
+            {finalTwo && !resolved.winner ? (
+              <FinalDuel
+                playerA={finalTwo[0]}
+                playerB={finalTwo[1]}
                 currentRound={resolved.currentRound}
                 revealPicks={picksRevealed}
+                roundLabel={roundInfo?.name}
               />
-            ))}
+            ) : (
+              <>
+                <h2 class="section-title status-alive">⚔ Survivors</h2>
+                <div class="fighter-grid" id="lms-survivors">
+                  {alive.map((player) => (
+                    <FighterCard
+                      player={player}
+                      showPick
+                      currentRound={resolved.currentRound}
+                      revealPicks={picksRevealed}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </section>
 
@@ -160,6 +179,17 @@ const eliminated = getEliminatedPlayers(resolved).sort(
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .survivors-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .survivors-area :global(.section-title),
+  .survivors-area :global(.fighter-grid) {
+    width: 100%;
   }
 
   .fighter-grid {

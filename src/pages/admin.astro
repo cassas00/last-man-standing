@@ -146,8 +146,11 @@ import { rounds } from '../data/rounds';
     clearAdminSession,
     getAdminToken,
     loadResults,
+    persistResultsLocally,
     resetAllData,
+    resultsApiAvailable,
     saveMatchResult,
+    syncLocalResultsToApi,
   } from '../lib/results-store';
 
   const loginSection = document.getElementById('login-section') as HTMLElement;
@@ -231,6 +234,21 @@ import { rounds } from '../data/rounds';
     return { type: 'pending' as const };
   }
 
+  function missingFeederNote(match: RoundMatch): string {
+    const missing: number[] = [];
+    if (!match.homeTeamId && match.homeLabel) {
+      const m = match.homeLabel.match(/^Match (\d+) Winner$/);
+      if (m) missing.push(Number(m[1]));
+    }
+    if (!match.awayTeamId && match.awayLabel) {
+      const m = match.awayLabel.match(/^Match (\d+) Winner$/);
+      if (m) missing.push(Number(m[1]));
+    }
+    if (missing.length === 0) return '';
+    const nums = [...new Set(missing)].sort((a, b) => a - b);
+    return `<p class="match-admin__tbd">Waiting on earlier result${nums.length > 1 ? 's' : ''} for match${nums.length > 1 ? 'es' : ''} ${nums.join(', ')}. If these are already settled, open admin via <code>http://localhost:8888</code> (pnpm dev:netlify), not plain Astro.</p>`;
+  }
+
   function renderMatches() {
     const round = Number(roundFilter.value);
     const matches = currentMatches().filter((m) => m.round === round);
@@ -274,6 +292,7 @@ import { rounds } from '../data/rounds';
               <button type="button" class="result-btn result-btn--clear" data-action="clear" data-match="${match.matchNumber}" ${busy ? 'disabled' : ''}>Clear</button>
             </div>`
           : `<p class="match-admin__tbd">Teams TBD — set result once bracket is confirmed.</p>`;
+        const feederNote = !canScore ? missingFeederNote(match) : '';
 
         return `<article class="match-admin mk-panel ${result.type !== 'pending' ? 'match-admin--scored' : ''}">
           <div class="match-admin__head">
@@ -282,7 +301,7 @@ import { rounds } from '../data/rounds';
           </div>
           <p class="match-admin__teams">${homeName} vs ${awayName}</p>
           ${kickoff ? `<p class="match-admin__kickoff">${kickoff}</p>` : ''}
-          ${actions}
+          ${feederNote || actions}
         </article>`;
       })
       .join('');
@@ -362,17 +381,19 @@ import { rounds } from '../data/rounds';
     return getUkTimeOnKickoffDay(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}T12:00:00Z`, hh, mi);
   }
 
-  function alivePlayerIds(): Set<string> {
+  function eligiblePlayerIds(round: number): Set<string> {
     const players = Object.values(poolState.entries).map((entry) => ({
       id: entry.playerId,
       name: entry.name,
       picks: entry.picks.map((p) => ({ round: p.round, teamId: p.teamId })),
     }));
+    const matches = currentMatches();
+    const roundOpensAt = getRoundSchedule(round, matches, scheduleOptions())?.opensAt;
     const resolved = resolveGameState(
       players,
-      currentMatches(),
+      matches,
       gameConfig.totalRounds,
-      Date.now(),
+      roundOpensAt ? new Date(roundOpensAt).getTime() : Date.now(),
       scheduleOptions(),
     );
     return new Set(resolved.players.filter((p) => !p.eliminated).map((p) => p.id));
@@ -383,7 +404,7 @@ import { rounds } from '../data/rounds';
     addPlayerRoundLabel.textContent = String(round);
     populateTeamSelect(newPlayerTeam, round);
 
-    const aliveIds = round > 1 ? alivePlayerIds() : null;
+    const aliveIds = round > 1 ? eligiblePlayerIds(round) : null;
     const entries = Object.values(poolState.entries)
       .filter((entry) => !aliveIds || aliveIds.has(entry.playerId))
       .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
@@ -427,6 +448,7 @@ import { rounds } from '../data/rounds';
   }
 
   async function refreshResults() {
+    const apiOk = await resultsApiAvailable();
     const [{ state }, results, settings] = await Promise.all([
       loadPoolState(),
       loadResults(),
@@ -435,12 +457,27 @@ import { rounds } from '../data/rounds';
     poolState = state;
     resultsState = results;
     poolSettings = settings;
+
+    const synced = apiOk ? await syncLocalResultsToApi() : 0;
+    if (synced > 0) {
+      resultsState = await loadResults();
+    }
+
     prizeInput.value = settings.prizeAmount ?? '';
     syncRoundFilters();
     renderMatches();
     renderPlayers();
     renderExtensionSummary();
     syncExtendDeadlineInput();
+
+    if (!apiOk) {
+      setStatus(
+        'Results API unavailable on this port. Use http://localhost:8888/admin (pnpm dev:netlify) so R16/QF results load.',
+        'error',
+      );
+    } else if (synced > 0) {
+      setStatus(`Synced ${synced} locally saved result${synced === 1 ? '' : 's'} to shared storage.`, 'ok');
+    }
   }
 
   function syncExtendDeadlineInput() {
@@ -473,6 +510,7 @@ import { rounds } from '../data/rounds';
       results: nextResults,
       updatedAt: new Date().toISOString(),
     };
+    persistResultsLocally(resultsState);
   }
 
   async function handleResultAction(matchNumber: number, action: string) {
@@ -505,15 +543,19 @@ import { rounds } from '../data/rounds';
     try {
       const result = await saveMatchResult(payload);
       if (result.ok) {
-        resultsState = result.state ?? (await loadResults());
-        setStatus(`Match #${matchNumber} updated.`, 'ok');
+        resultsState = result.state ?? resultsState;
+        setStatus(
+          result.localOnly
+            ? `Match #${matchNumber} saved locally (use pnpm dev:netlify for shared storage).`
+            : `Match #${matchNumber} updated.`,
+          'ok',
+        );
       } else {
         resultsState = await loadResults();
         setStatus(result.error ?? 'Could not save result.', 'error');
       }
     } catch {
-      resultsState = await loadResults();
-      setStatus('Could not save result.', 'error');
+      setStatus(`Match #${matchNumber} saved locally.`, 'ok');
     } finally {
       savingMatch = null;
       renderMatches();

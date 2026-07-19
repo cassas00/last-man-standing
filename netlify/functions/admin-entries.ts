@@ -6,7 +6,7 @@ import {
   type AdminAddPlayerRequest,
   type AdminSetPickRequest,
 } from "../../src/lib/admin-pool";
-import { addPlayerToState, applyPickToState } from "../../src/lib/pool-mutations";
+import { addPlayerToState, applyPickToState, clearRoundPicksFromState } from "../../src/lib/pool-mutations";
 import { getLiveMatches } from "../../src/lib/live-matches";
 import { scheduleOptionsFromSettings } from "../../src/lib/schedule-options";
 import type { PoolState } from "../../src/types/pool";
@@ -23,7 +23,8 @@ const RESULTS_KEY = "results";
 
 type AdminBody =
   | ({ action: "addPlayer" } & AdminAddPlayerRequest)
-  | ({ action: "setPick" } & AdminSetPickRequest);
+  | ({ action: "setPick" } & AdminSetPickRequest)
+  | { action: "clearRoundPicks"; round: number };
 
 async function readState(store: ReturnType<typeof getStore>): Promise<PoolState> {
   const state = await store.get(STATE_KEY, { type: "json" });
@@ -95,6 +96,16 @@ export default async (req: Request, _context: Context) => {
 
     await store.setJSON(STATE_KEY, state);
     return Response.json({ ok: true, state });
+  }
+
+  if (body.action === "clearRoundPicks") {
+    const round = body.round;
+    if (!Number.isInteger(round) || round < 1) {
+      return Response.json({ ok: false, error: "Invalid round." }, { status: 400 });
+    }
+    const cleared = clearRoundPicksFromState(state, round);
+    await store.setJSON(STATE_KEY, state);
+    return Response.json({ ok: true, state, cleared });
   }
 
   return Response.json({ ok: false, error: "Unknown action." }, { status: 400 });

@@ -129,6 +129,8 @@ export function getMatchesForRound(round: number): RoundMatch[] {
 
 export {
   getAlivePlayers,
+  getAliveRegisteredPlayers,
+  getFinalTwo,
   getEliminatedPlayers,
   getTeamsPlayingInRound,
 } from "../utils/engine";

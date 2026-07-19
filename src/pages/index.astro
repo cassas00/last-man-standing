@@ -5,11 +5,13 @@ import Footer from '../components/Footer.astro';
 import PrizeBanner from '../components/PrizeBanner.astro';
 import RoundBanner from '../components/RoundBanner.astro';
 import FighterCard from '../components/FighterCard.astro';
+import FinalDuel from '../components/FinalDuel.astro';
 import MatchCard from '../components/MatchCard.astro';
 import {
   game,
   getResolvedGame,
   getAlivePlayers,
+  getFinalTwo,
   getMatchesForRound,
 } from '../data/game';
 import { getRoundInfo } from '../data/rounds';
@@ -18,6 +20,7 @@ const resolved = getResolvedGame();
 const picksRevealed = areRoundPicksRevealed(resolved.currentRound, game.matches);
 const roundInfo = getRoundInfo(resolved.currentRound);
 const alive = getAlivePlayers(resolved);
+const finalTwo = getFinalTwo(resolved);
 const roundMatches = getMatchesForRound(resolved.currentRound);
 const nextOpensLabel = resolved.schedule
   ? formatScheduleTime(resolved.schedule.opensAt)
@@ -58,24 +61,38 @@ const nextOpensLabel = resolved.schedule
       <div class="container">
         <div class="arena-grid">
           <div class="arena-main">
-            <h2 class="section-title mk-gold-text">Survivors</h2>
-            <div class="fighter-grid" id="lms-survivors">
-              {alive.map((player, i) => (
-                <div class="animate-slide-up" style={`animation-delay: ${i * 0.1}s`}>
-                  <FighterCard
-                    player={player}
-                    showPick
-                    currentRound={resolved.currentRound}
-                    revealPicks={picksRevealed}
-                  />
-                </div>
-              ))}
+            <div id="lms-survivors-area" class="survivors-area" data-survivors-title="Survivors" data-survivors-title-class="section-title mk-gold-text">
+              {finalTwo && !resolved.winner ? (
+                <FinalDuel
+                  playerA={finalTwo[0]}
+                  playerB={finalTwo[1]}
+                  currentRound={resolved.currentRound}
+                  revealPicks={picksRevealed}
+                  roundLabel={roundInfo?.name}
+                />
+              ) : (
+                <>
+                  <h2 class="section-title mk-gold-text">Survivors</h2>
+                  <div class="fighter-grid" id="lms-survivors">
+                    {alive.map((player, i) => (
+                      <div class="animate-slide-up" style={`animation-delay: ${i * 0.1}s`}>
+                        <FighterCard
+                          player={player}
+                          showPick
+                          currentRound={resolved.currentRound}
+                          revealPicks={picksRevealed}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
-            {alive.length <= 3 && alive.length > 0 && resolved.phase !== 'tournament-over' && (
+            {alive.length === 3 && resolved.phase !== 'tournament-over' && (
               <div class="final-warning mk-panel">
                 <p class="final-warning__text">⚔ FINAL KOMBAT APPROACHING ⚔</p>
-                <p class="final-warning__sub">Only {alive.length} fighter{alive.length !== 1 ? 's' : ''} remain. Pick wisely.</p>
+                <p class="final-warning__sub">Only 3 fighters remain. Pick wisely.</p>
               </div>
             )}
           </div>
@@ -105,7 +122,9 @@ const nextOpensLabel = resolved.schedule
                 <li>Results calculated overnight; next round opens at midnight UK time</li>
                 <li>Last fighter standing wins the pool</li>
                 <li>All picks stay hidden until the deadline — use the same device to update yours</li>
-                <li>You can't reuse a team from a previous round</li>
+                <li>You can't reuse a team from a previous round (except in the Final)</li>
+                <li>Third-place play-off survivors advance to the Final</li>
+                <li>Final picks close 90 min before kick-off</li>
               </ol>
               {resolved.scheduleOk && (
                 <p class="rules__note">✓ LMS rounds align with World Cup matchdays — no overlap between rounds.</p>
@@ -182,6 +201,17 @@ const nextOpensLabel = resolved.schedule
     margin-bottom: 1.25rem;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid rgba(255, 215, 0, 0.2);
+  }
+
+  .survivors-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .survivors-area :global(.section-title),
+  .survivors-area :global(.fighter-grid) {
+    width: 100%;
   }
 
   .fighter-grid {

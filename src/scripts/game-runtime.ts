@@ -8,6 +8,7 @@ import type { ResolvedPlayer, ResolvedGame } from "../utils/engine";
 import {
   getRoundPhase,
   getTeamsPlayingInRound,
+  getFinalTwo,
   phaseLabel,
   resolveGameState,
 } from "../utils/engine";
@@ -19,6 +20,7 @@ import {
 } from "../utils/schedule";
 import type { RoundMatch, Team } from "../data/game";
 import { getTeam } from "../data/game";
+import { getRoundInfo } from "../data/rounds";
 
 let activeScheduleOptions: ScheduleOptions = {};
 
@@ -30,6 +32,76 @@ function getConfig(): GameConfig | null {
 
 function teamById(teams: Team[], id: string): Team | undefined {
   return teams.find((t) => t.id === id);
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function renderFinalDuel(
+  playerA: ResolvedPlayer,
+  playerB: ResolvedPlayer,
+  teams: Team[],
+  currentRound: number,
+  revealPicks: boolean,
+  roundLabel?: string,
+): string {
+  function fighterSide(player: ResolvedPlayer, side: "left" | "right") {
+    const pick = player.picks.find((p) => p.round === currentRound);
+    const team = pick && revealPicks ? teamById(teams, pick.teamId) : undefined;
+    const pickHidden = !!(pick && !revealPicks);
+    const accent = team?.color ?? "var(--red-fire)";
+
+    let status = "";
+    let statusClass = "";
+    if (pick && revealPicks && pick.won === true) {
+      status = "WIN";
+      statusClass = "status-alive";
+    } else if (pick && revealPicks && pick.won === false) {
+      status = "LOSS";
+      statusClass = "status-dead";
+    } else if (pick && revealPicks) {
+      status = "PENDING";
+      statusClass = "final-duel__status--pending";
+    }
+
+    const pickHtml = pickHidden
+      ? `<span class="final-duel__pick final-duel__pick--hidden">PICKED</span>`
+      : team
+        ? `<span class="final-duel__pick" style="--team-color: ${team.color}">${team.short}</span>`
+        : `<span class="final-duel__pick final-duel__pick--none">No pick</span>`;
+
+    return `<div class="final-duel__fighter final-duel__fighter--${side}" style="--accent: ${accent}">
+      <div class="final-duel__glow" aria-hidden="true"></div>
+      <div class="final-duel__avatar">${initials(player.name)}</div>
+      <h3 class="final-duel__name">${player.name}</h3>
+      ${pickHtml}
+      ${status ? `<span class="final-duel__status ${statusClass}">${status}</span>` : ""}
+      <div class="final-duel__health"><div class="final-duel__health-bar"></div></div>
+    </div>`;
+  }
+
+  const sub = roundLabel
+    ? `${roundLabel} decides the champion — one pick, one survivor.`
+    : "Two fighters remain. One pick decides it all.";
+
+  return `<div class="final-duel mk-panel animate-fight">
+    <header class="final-duel__header">
+      <p class="final-duel__eyebrow">Head to head</p>
+      <h2 class="final-duel__title">⚔ Final Kombat ⚔</h2>
+      <p class="final-duel__sub">${sub}</p>
+    </header>
+    <div class="final-duel__arena">
+      ${fighterSide(playerA, "left")}
+      <div class="final-duel__center">
+        <span class="final-duel__vs">VS</span>
+        <span class="final-duel__spark" aria-hidden="true">✦</span>
+      </div>
+      ${fighterSide(playerB, "right")}
+    </div>
+  </div>`;
 }
 
 function renderFighterCard(
@@ -278,7 +350,10 @@ function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches:
     enterCta.style.display = resolved.picksOpen ? "" : "none";
     const textEl = enterCta.querySelector("[data-lms-enter-cta-text]");
     if (textEl) {
-      textEl.textContent = `Round ${resolved.currentRound} picks are open — submit your team before the deadline.`;
+      textEl.textContent =
+        resolved.currentRound === config.totalRounds
+          ? "Final picks are open to surviving players until 90 minutes before kick-off."
+          : `Round ${resolved.currentRound} picks are open — submit your team before the deadline.`;
     }
   }
 
@@ -352,14 +427,50 @@ function applyResolvedState(resolved: ResolvedGame, config: GameConfig, matches:
     activeScheduleOptions,
   );
 
-  const survivors = document.getElementById("lms-survivors");
-  if (survivors) {
-    survivors.innerHTML = alive
-      .map(
-        (player, i) =>
-          `<div class="animate-slide-up" style="animation-delay: ${i * 0.1}s">${renderFighterCard(player, config.teams, resolved.currentRound, true, picksRevealed)}</div>`,
-      )
-      .join("");
+  const finalTwo = getFinalTwo(resolved);
+  const survivorsArea = document.getElementById("lms-survivors-area");
+  if (survivorsArea) {
+    if (finalTwo && !resolved.winner) {
+      const roundLabel = getRoundInfo(resolved.currentRound)?.name;
+      survivorsArea.innerHTML = renderFinalDuel(
+        finalTwo[0],
+        finalTwo[1],
+        config.teams,
+        resolved.currentRound,
+        picksRevealed,
+        roundLabel,
+      );
+    } else {
+      const survivors = document.getElementById("lms-survivors");
+      if (survivors) {
+        survivors.innerHTML = alive
+          .map(
+            (player, i) =>
+              `<div class="animate-slide-up" style="animation-delay: ${i * 0.1}s">${renderFighterCard(player, config.teams, resolved.currentRound, true, picksRevealed)}</div>`,
+          )
+          .join("");
+      } else {
+        const title = survivorsArea.dataset.survivorsTitle ?? "Survivors";
+        const titleClass = survivorsArea.dataset.survivorsTitleClass ?? "section-title mk-gold-text";
+        survivorsArea.innerHTML = `<h2 class="${titleClass}">${title}</h2>
+          <div class="fighter-grid" id="lms-survivors">${alive
+            .map(
+              (player, i) =>
+                `<div class="animate-slide-up" style="animation-delay: ${i * 0.1}s">${renderFighterCard(player, config.teams, resolved.currentRound, true, picksRevealed)}</div>`,
+            )
+            .join("")}</div>`;
+      }
+    }
+  } else {
+    const survivors = document.getElementById("lms-survivors");
+    if (survivors) {
+      survivors.innerHTML = alive
+        .map(
+          (player, i) =>
+            `<div class="animate-slide-up" style="animation-delay: ${i * 0.1}s">${renderFighterCard(player, config.teams, resolved.currentRound, true, picksRevealed)}</div>`,
+        )
+        .join("");
+    }
   }
 
   const fallen = document.getElementById("lms-fallen");

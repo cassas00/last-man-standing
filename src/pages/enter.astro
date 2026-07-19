@@ -234,10 +234,14 @@ import { gameConfig } from '../lib/game-config';
 
     teamLabel.textContent = `Round ${currentRound} team`;
     const hintEl = document.getElementById('team-hint')!;
-    if (currentRound >= 5) {
+    if (currentRound === totalRounds) {
       hintEl.textContent = picksRevealed
-        ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted. Only Round of 16 teams you have not picked before.`
-        : "Pick a Round of 16 team you have not used in an earlier round.";
+        ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted. Either finalist may be picked, including a team used earlier.`
+        : 'Pick either finalist. Team reuse is allowed for the Final.';
+    } else if (currentRound >= 5) {
+      hintEl.textContent = picksRevealed
+        ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted. Only teams you have not picked before.`
+        : "Pick a team you have not used in an earlier round.";
     } else if (currentRound >= 4) {
       hintEl.textContent = picksRevealed
         ? `${takenThisRound.size} pick${takenThisRound.size !== 1 ? 's' : ''} submitted. Only Round of 32 teams you have not picked before.`
@@ -268,7 +272,12 @@ import { gameConfig } from '../lib/game-config';
     const schedule = getRoundSchedule(currentRound, liveMatches, scheduleOptions);
 
     pageKicker.textContent = `Round ${currentRound}`;
-    rosterTitle.textContent = currentRound === 1 ? `Players (${Object.keys(state.entries).length})` : 'Survivors';
+    rosterTitle.textContent =
+      currentRound === 1
+        ? `Players (${Object.keys(state.entries).length})`
+        : currentRound === totalRounds
+          ? `Finalists (${survivors.length})`
+          : 'Survivors';
 
     if (currentRound === 1) {
       pageSub.textContent =
@@ -276,6 +285,12 @@ import { gameConfig } from '../lib/game-config';
       fieldPlayer.hidden = false;
       slotSelect.required = false;
       formTitle.textContent = 'Register';
+    } else if (currentRound === totalRounds) {
+      pageSub.textContent =
+        'The third-place play-off is complete. Surviving players can pick either finalist, including a team used earlier.';
+      fieldPlayer.hidden = false;
+      slotSelect.required = true;
+      formTitle.textContent = 'Final Pick';
     } else {
       pageSub.textContent =
         `Submit your Round ${currentRound} pick. Select your name and a team — you can't reuse a team from an earlier round.`;
@@ -336,20 +351,22 @@ import { gameConfig } from '../lib/game-config';
 
       if (!picksOpen) {
         setStatus(resolved.phaseLabel, 'info');
-      } else if (source === 'local' && survivorOptions.length === 0 && currentRound > 1) {
+      } else if (source === 'local' && registeredPlayers.length === 0 && currentRound > 1) {
         setStatus(
           'No players loaded — plain pnpm dev cannot reach the pool API. Run pnpm dev:netlify to use live entries.',
           'info',
         );
         submitBtn.disabled = true;
       } else if (currentRound > 1 && survivorOptions.length === 0) {
-        setStatus('No players registered yet.', 'info');
-        submitBtn.disabled = true;
-      } else if (currentRound > 1 && survivors.length === 0) {
-        setStatus('No surviving registered players yet.', 'info');
+        setStatus('No surviving registered players for this round.', 'info');
         submitBtn.disabled = true;
       } else {
-        setStatus(`Round ${currentRound} picks are open.`, 'ok');
+        setStatus(
+          currentRound === totalRounds
+            ? 'Final picks are open for surviving players.'
+            : `Round ${currentRound} picks are open.`,
+          'ok',
+        );
         submitBtn.disabled = false;
       }
     }

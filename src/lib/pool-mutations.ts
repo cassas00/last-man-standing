@@ -18,6 +18,20 @@ export function applyPickToState(state: PoolState, request: SubmitPickRequest): 
   };
 }
 
+export function clearRoundPicksFromState(state: PoolState, round: number): number {
+  let cleared = 0;
+  const now = new Date().toISOString();
+  for (const entry of Object.values(state.entries)) {
+    const before = entry.picks.length;
+    entry.picks = entry.picks.filter((p) => p.round !== round);
+    if (entry.picks.length !== before) {
+      entry.updatedAt = now;
+      cleared += 1;
+    }
+  }
+  return cleared;
+}
+
 export function addPlayerToState(state: PoolState, name: string, playerId?: string): string {
   const id = playerId ?? crypto.randomUUID();
   const now = new Date().toISOString();
